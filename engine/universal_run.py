@@ -14,8 +14,10 @@ from pathlib import Path
 from engine import report, universal, universal_report
 from engine.checkov_adapter import CheckovAdapter
 from engine.cicd import CicdEngine
+from engine.gitleaks_adapter import GitleaksAdapter
 from engine.iac import IacEngine
 from engine.sast import SastEngine
+from engine.secrets_engine import SecretsEngine
 from engine.semgrep_adapter import SemgrepAdapter
 from engine.universal import EXPOSURES, ModelError, Registry
 from engine.zizmor_adapter import ZizmorAdapter
@@ -28,9 +30,11 @@ def build_registry() -> Registry:
     registry.register_adapter(SemgrepAdapter())
     registry.register_adapter(CheckovAdapter())
     registry.register_adapter(ZizmorAdapter())
+    registry.register_adapter(GitleaksAdapter())
     registry.register_engine(SastEngine())
     registry.register_engine(IacEngine())
     registry.register_engine(CicdEngine())
+    registry.register_engine(SecretsEngine())
     return registry
 
 
@@ -42,7 +46,7 @@ def _count_verdicts(assessed: list[dict]) -> dict:
 
 
 def run(input_path: Path, project_dir: Path, output_dir: Path, *, exposure: str = "unknown",
-        registry: Registry | None = None) -> dict:
+        adapter_name: str | None = None, registry: Registry | None = None) -> dict:
     if exposure not in EXPOSURES:
         raise ModelError(f"unknown exposure: {exposure}")
     registry = registry or build_registry()
@@ -51,9 +55,12 @@ def run(input_path: Path, project_dir: Path, output_dir: Path, *, exposure: str 
     except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise ModelError(f"input is not readable JSON: {exc}") from exc
 
-    adapter = registry.detect_adapter(document)
-    if adapter is None:
-        raise ModelError("no registered adapter recognises this input")
+    if adapter_name:
+        adapter = registry.adapter(adapter_name)
+    else:
+        adapter = registry.detect_adapter(document)
+        if adapter is None:
+            raise ModelError("no registered adapter recognises this input; pass --adapter")
     findings, diagnostics = adapter.parse(document, {"target": input_path.name})
     for finding in findings:
         finding["exploitability_context"]["exposure"] = exposure
@@ -83,9 +90,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--project-dir", type=Path, required=True)
     parser.add_argument("--output-dir", type=Path, default=Path("universal-report"))
     parser.add_argument("--exposure", choices=EXPOSURES, default="unknown")
+    parser.add_argument("--adapter", default=None,
+                        help="Adapter name, for input that detection cannot tell apart (e.g. empty output)")
     args = parser.parse_args(argv)
     try:
-        summary = run(args.input, args.project_dir, args.output_dir, exposure=args.exposure)
+        summary = run(args.input, args.project_dir, args.output_dir, exposure=args.exposure,
+                      adapter_name=args.adapter)
     except ModelError as exc:
         print(f"rejected: {exc}", file=sys.stderr)
         return 2
