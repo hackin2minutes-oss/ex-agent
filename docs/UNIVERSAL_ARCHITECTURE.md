@@ -180,8 +180,17 @@ Taken by the project owner. Each one is implemented as stated.
   Real input: `tests/fixtures/cicd/zizmor-1.31.1.real.json`, from `zizmor --offline` on
   `tests/fixtures/cicd/project`. Offline mode skips the GitHub API audits. Zizmor's JSON has no
   version field, so provenance carries no version.
-- Not done: Gitleaks, Hadolint, Trivy and Grype adapters; the SCA port; a gate in the universal
-  path; a GitHub Action input for it.
+- Secrets: the Gitleaks adapter (`engine/gitleaks_adapter.py`) never writes the credential into a
+  finding. It keeps a SHA-256 of the match and the length, and redacts `Match` and `Secret`. The
+  secrets engine (`engine/secrets_engine.py`) finds the match in the reported line by content. It
+  does not use Gitleaks' column offsets, which were off by one in the measured output. A verified
+  value in a non-test path gives POTENTIALLY_EXPLOITABLE with MEDIUM confidence. A value in a test,
+  example, fixture or documentation path gives UNKNOWN. No live validation is done (decision 4).
+  Real input: `tests/fixtures/secrets/gitleaks-8.24.2.real.json`, from `tests/fixtures/secrets/project`.
+  The credential there is fabricated. Gitleaks' empty output is not detectable, so the CLI takes
+  `--adapter gitleaks`.
+- Not done: Hadolint, Trivy and Grype adapters; the SCA port; a gate in the universal path; a
+  GitHub Action input for it.
 
 ## 9. Not claimed
 
