@@ -25,13 +25,16 @@ class PipelineTestCase(unittest.TestCase):
 
 
 class FixturePipelineTest(PipelineTestCase):
-    def test_fixture_is_potentially_exploitable_with_full_evidence(self):
+    def test_fixture_text_scan_is_component_only_with_full_evidence(self):
         summary, out = self.run_pipeline(FIXTURE, FIXTURE / "resolved-deps.json")
         finding = json.loads((out / "evidence.json").read_text())["findings"][0]
 
+        # A lexical call-site match is not call-graph reachability, so the stage stays UNKNOWN.
         self.assertEqual(finding["reachability"], "potentially")
         self.assertEqual(finding["preconditions"], "unverified")
-        self.assertEqual(finding["verdict"], "potentially_exploitable")
+        self.assertEqual(finding["classification"], "vulnerable_component_only")
+        self.assertEqual(finding["stages"]["E_function_reachability"], "UNKNOWN")
+        self.assertEqual(finding["verdict"], "unknown")
         self.assertEqual(finding["scope"]["analysis_mode"], "text_scan")
 
         call = next(e for e in finding["evidence"] if e["type"] == "call_site")
@@ -83,6 +86,36 @@ class FixturePipelineTest(PipelineTestCase):
         deps.write_text(json.dumps(data))
         summary, _ = self.run_pipeline(FIXTURE, deps)
         self.assertEqual(summary["findings"], 0)
+
+
+class PolicyGateTest(PipelineTestCase):
+    """The policy file decides the gate when one is supplied."""
+
+    def write_policy(self, text):
+        path = self.tmp / "policy.yml"
+        path.write_text(text)
+        return path
+
+    def test_policy_that_blocks_component_only_fails_the_gate(self):
+        policy_file = self.write_policy(
+            "version: 1\nexploitability:\n  vulnerable_component_only:\n    action: block\n")
+        summary, out = self.run_pipeline(FIXTURE, FIXTURE / "resolved-deps.json", policy_path=policy_file)
+        self.assertTrue(summary["gate_failed"])
+        self.assertEqual(summary["policy"]["decisions"]["block"], 1)
+        finding = json.loads((out / "evidence.json").read_text())["findings"][0]
+        self.assertEqual(finding["policy"]["action"], "block")
+
+    def test_policy_that_reports_component_only_passes_the_gate(self):
+        policy_file = self.write_policy(
+            "version: 1\nexploitability:\n  vulnerable_component_only:\n    action: report\n")
+        summary, _ = self.run_pipeline(FIXTURE, FIXTURE / "resolved-deps.json", policy_path=policy_file)
+        self.assertFalse(summary["gate_failed"])
+
+    def test_invalid_policy_stops_the_run(self):
+        from engine.policy import PolicyError
+        policy_file = self.write_policy("version: 1\nexploitability:\n  confirmed_exploitabel:\n    action: block\n")
+        with self.assertRaises(PolicyError):
+            self.run_pipeline(FIXTURE, FIXTURE / "resolved-deps.json", policy_path=policy_file)
 
 
 class OsvDrivenPipelineTest(PipelineTestCase):
@@ -137,7 +170,8 @@ class OsvDrivenPipelineTest(PipelineTestCase):
         symbols = next(e for e in finding["evidence"] if e["type"] == "vulnerable_symbols")
         self.assertEqual(symbols["detail"], ["com.acme.Parser.parse"])
         self.assertIn("fix-commit", symbols["source"])
-        self.assertEqual(finding["verdict"], "potentially_exploitable")
+        self.assertEqual(finding["stages"]["L_threat_intelligence"], "CONFIRMED")
+        self.assertEqual(finding["classification"], "vulnerable_component_only")
         self.assertEqual(summary["findings"], 1)
 
     def test_no_symbols_means_unknown(self):

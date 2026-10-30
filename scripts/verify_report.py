@@ -8,7 +8,6 @@ import json
 import sys
 from pathlib import Path
 
-ALLOWED_VERDICTS = {"potentially_exploitable", "confirmed_exploitable"}
 
 
 def main(argv: list[str]) -> int:
@@ -17,6 +16,7 @@ def main(argv: list[str]) -> int:
     parser.add_argument("--mode", required=True, choices=["codeql", "text_scan"])
     parser.add_argument("--expect-call-site", action="store_true")
     parser.add_argument("--expect-taint", choices=["confirmed", "not_found", "not_analysed"])
+    parser.add_argument("--expect-classification", required=True)
     args = parser.parse_args(argv)
 
     errors: list[str] = []
@@ -42,8 +42,8 @@ def main(argv: list[str]) -> int:
         errors.append("gate failed")
 
     for finding in findings:
-        if finding["verdict"] not in ALLOWED_VERDICTS:
-            errors.append(f"unexpected verdict {finding['verdict']}")
+        if finding["classification"] != args.expect_classification:
+            errors.append(f"classification is {finding['classification']}, expected {args.expect_classification}")
         if finding["vulnerability"]["cve"] != "CVE-XXXX-XXXX":
             errors.append("finding does not match the curated rule")
         call = next(e for e in finding["evidence"] if e["type"] == "call_site")

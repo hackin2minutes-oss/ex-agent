@@ -36,6 +36,8 @@ def main(argv: list[str] | None = None) -> int:
                         help="Directory of <commit-sha>.diff files, used before fetching from GitHub")
     parser.add_argument("--codeql", default=None, help="Path to the CodeQL CLI (default: PATH lookup)")
     parser.add_argument("--build-command", default=None, help="Build command for the CodeQL database")
+    parser.add_argument("--policy", type=_optional_path, default=None,
+                        help="Policy file (YAML). When given, it decides the gate instead of --fail-on.")
     parser.add_argument("--no-comment", action="store_true", help="Do not post a pull request comment")
     args = parser.parse_args(argv)
 
@@ -43,6 +45,7 @@ def main(argv: list[str] | None = None) -> int:
         args.project_dir, args.deps, args.rules_dir, args.output_dir, args.fail_on,
         offline=args.offline, cache_dir=args.cache_dir, fix_diffs_dir=args.fix_diffs_dir,
         codeql_path=args.codeql or None, build_command=args.build_command or None,
+        policy_path=args.policy,
     )
 
     markdown = (args.output_dir / "report.md").read_text(encoding="utf-8")
@@ -54,7 +57,8 @@ def main(argv: list[str] | None = None) -> int:
 
     print(f"findings: {summary['findings']}  verdicts: {summary['verdicts']}")
     print(f"analysis mode: {summary['analysis_mode']}")
-    print(f"gate ({args.fail_on}): {'FAILED' if summary['gate_failed'] else 'passed'}")
+    gate_name = "policy" if args.policy else args.fail_on
+    print(f"gate ({gate_name}): {'FAILED' if summary['gate_failed'] else 'passed'}")
     return 1 if summary["gate_failed"] else 0
 
 

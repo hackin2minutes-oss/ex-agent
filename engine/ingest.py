@@ -14,6 +14,8 @@ import json
 import re
 from pathlib import Path
 
+from engine import versions
+
 RESOLVED_FILE_NAMES = [
     "resolved-deps.json",
     "package-lock.json",
@@ -156,10 +158,6 @@ def resolve(project_dir: Path, deps_path: Path | None) -> list[dict]:
     )
 
 
-def version_key(version: str) -> tuple[int, ...]:
-    return tuple(int(n) for n in re.findall(r"\d+", version))
-
-
-def is_affected(version: str, introduced: str, fixed: str) -> bool:
-    """`introduced` is inclusive, `fixed` is exclusive."""
-    return version_key(introduced) <= version_key(version) < version_key(fixed)
+def is_affected(version: str, introduced: str, fixed: str) -> bool | None:
+    """Maven range check. `introduced` is inclusive and `fixed` is exclusive. None if unsupported."""
+    return versions.is_affected(versions.MAVEN, version, introduced, fixed)

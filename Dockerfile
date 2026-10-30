@@ -14,6 +14,8 @@ RUN if [ -n "$CODEQL_VERSION" ]; then \
 ENV PATH="/opt/codeql:${PATH}"
 
 WORKDIR /opt/exploitability
+COPY requirements.txt ./requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
 COPY engine ./engine
 COPY queries ./queries
 COPY rules ./rules

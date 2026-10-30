@@ -8,8 +8,10 @@ preconditions → verdict → reports.
 import subprocess
 from pathlib import Path
 
-from engine import callsites, codeql, context, ingest, intel as intel_module, preconditions
-from engine import report, symbols, verdict
+from pathlib import Path
+
+from engine import callsites, codeql, context, exploitability as xp, ingest, intel as intel_module
+from engine import policy, preconditions, report, symbols, verdict, versions
 
 SHIPPED_SCOPE_EXCLUDED = {"test", "dev"}
 ECOSYSTEMS_QUERIED = {"Maven", "npm", "PyPI"}
@@ -49,14 +51,17 @@ def collect_candidates(deps: list[dict], rules: list[dict], intel) -> dict:
                 "dependency": dep,
                 "curated": None,
                 "sources": ["osv"],
+                # OSV answers the version question for this exact version.
+                "version_status": xp.CONFIRMED,
             })
 
     for rule in rules:
         for dep in deps:
             if dep["ecosystem"] != rule.get("ecosystem", "Maven") or dep["name"] != rule["library"]:
                 continue
-            if not ingest.is_affected(dep["version"], rule["affected"]["introduced"],
-                                      rule["affected"]["fixed"]):
+            affected = versions.is_affected(dep["ecosystem"], dep["version"],
+                                            rule["affected"]["introduced"], rule["affected"]["fixed"])
+            if affected is False:
                 continue
             key = (rule["cve"], dep["ecosystem"], dep["name"], dep["version"])
             cand = candidates.setdefault(key, {
@@ -69,7 +74,11 @@ def collect_candidates(deps: list[dict], rules: list[dict], intel) -> dict:
                 "dependency": dep,
                 "curated": None,
                 "sources": [],
+                "version_status": xp.UNKNOWN,
             })
+            # affected is None when the ecosystem scheme is unsupported: the version is then UNKNOWN, not unaffected.
+            if affected is True:
+                cand["version_status"] = xp.CONFIRMED
             cand["curated"] = rule
             cand["sources"].append("curated")
 
@@ -100,6 +109,44 @@ def candidate_symbols(cand: dict, intel, fix_diffs_dir: Path | None) -> tuple[li
 def _taint_locations(flows: list[dict]) -> list[dict]:
     return [{"file": f["file"], "line": f["line"], "source": None, "sink": f"{f['file']}:{f['line']}",
              "message": f["message"]} for f in flows]
+
+
+def derive_stages(*, cand: dict, symbol_names: list[str], mode: str, codeql_requested: bool,
+                  hits: list[dict], taint: str, analysis_complete: bool, pre_status: str,
+                  mitigated: bool, kev_status: bool | None) -> dict[str, str]:
+    """Map what the engine observed to one status per stage. See docs/EXPLOITABILITY_MODEL.md."""
+    if mode == "codeql":
+        reachability = xp.CONFIRMED if hits else (xp.NOT_CONFIRMED if analysis_complete else xp.UNKNOWN)
+        data_flow = xp.CONFIRMED if taint == verdict.TAINT_CONFIRMED else xp.NOT_CONFIRMED
+    elif codeql_requested:
+        # CodeQL was available but did not complete: a failure, not a lexical result.
+        reachability = xp.ANALYSIS_FAILED
+        data_flow = xp.ANALYSIS_FAILED
+    else:
+        # Text scan is lexical matching only, so it cannot establish call-graph reachability.
+        reachability = xp.UNKNOWN
+        data_flow = xp.UNKNOWN
+
+    precondition_map = {"satisfied": xp.CONFIRMED, "not_satisfied": xp.NOT_CONFIRMED, "unverified": xp.UNKNOWN}
+    if kev_status is None:
+        threat = xp.UNKNOWN
+    else:
+        threat = xp.CONFIRMED if kev_status else xp.NOT_CONFIRMED
+
+    return {
+        "A_presence": xp.CONFIRMED,
+        "B_version": cand["version_status"],
+        "C_inclusion": xp.UNKNOWN,
+        "D_function": xp.CONFIRMED if symbol_names else xp.UNKNOWN,
+        "E_function_reachability": reachability,
+        "F_entry_point": xp.CONFIRMED if taint == verdict.TAINT_CONFIRMED else xp.UNKNOWN,
+        "G_data_flow": data_flow,
+        "H_preconditions": precondition_map[pre_status],
+        "I_configuration": xp.UNKNOWN,
+        "J_security_controls": xp.UNKNOWN,
+        "K_mitigation": xp.CONFIRMED if mitigated else xp.UNKNOWN,
+        "L_threat_intelligence": threat,
+    }
 
 
 def analyse_candidate(cand: dict, project_dir: Path, ctx: dict) -> dict:
@@ -139,10 +186,21 @@ def analyse_candidate(cand: dict, project_dir: Path, ctx: dict) -> dict:
 
     pre_status, pre_details = preconditions.evaluate(
         cand["curated"]["preconditions"] if cand["curated"] else None, project_dir)
-    final_verdict = verdict.verdict(reach, pre_status)
-
     entry_points = context.find_entry_points(project_dir)
     auth_hints = context.access_control_hints(project_dir)
+
+    mitigated = any(c.get("kind") == "mitigated_by" and c.get("result") == "not_satisfied"
+                    for c in pre_details)
+    kev_status = None
+    if ctx["kev"] is not None and cand["cve"]:
+        kev_status = cand["cve"] in ctx["kev"]
+    stage_values = derive_stages(
+        cand=cand, symbol_names=symbol_names, mode=mode, codeql_requested=ctx["codeql_bin"] is not None,
+        hits=hits, taint=taint, analysis_complete=analysis_complete, pre_status=pre_status,
+        mitigated=mitigated, kev_status=kev_status)
+    classification, classification_reason = xp.classify(
+        stage_values, access_controls_present=bool(auth_hints))
+    final_verdict = xp.legacy_verdict(classification)
 
     vuln = {
         "id": cand["vuln_id"],
@@ -201,6 +259,10 @@ def analyse_candidate(cand: dict, project_dir: Path, ctx: dict) -> dict:
         "preconditions": pre_status,
         "verdict": final_verdict,
         "confidence": verdict.confidence(analysis_complete, taint),
+        "classification": classification,
+        "classification_reason": classification_reason,
+        "stages": stage_values,
+        "priority": "elevated" if kev_status else "standard",
         "evidence": evidence,
         "scope": {"analysed": [str(project_dir)], "analysis_mode": mode, "limitations": limitations},
     }
@@ -209,7 +271,7 @@ def analyse_candidate(cand: dict, project_dir: Path, ctx: dict) -> dict:
 def run(project_dir: Path, deps_path: Path | None, rules_dir: Path, output_dir: Path, fail_on: str,
         *, offline: bool = False, cache_dir: Path | None = None, fix_diffs_dir: Path | None = None,
         codeql_path: str | None = None, build_command: str | None = None,
-        intel: intel_module.Intel | None = None) -> dict:
+        intel: intel_module.Intel | None = None, policy_path: Path | None = None) -> dict:
     deps = [d for d in ingest.resolve(project_dir, deps_path)
             if d["scope"] not in SHIPPED_SCOPE_EXCLUDED]
     rules = symbols.load_rules(rules_dir)
@@ -246,7 +308,13 @@ def run(project_dir: Path, deps_path: Path | None, rules_dir: Path, output_dir: 
     }
 
     findings = [analyse_candidate(cand, project_dir, ctx) for cand in candidates.values()]
-    gate = any(verdict.gate_failed(fail_on, f["reachability"], f["verdict"]) for f in findings)
+    policy_summary = None
+    if policy_path is not None:
+        # With a policy file, the policy decides the gate. The fail_on value is then ignored.
+        policy_summary = policy.evaluate(policy.load_policy(policy_path), findings)
+        gate = policy_summary["blocked"]
+    else:
+        gate = any(verdict.gate_failed(fail_on, f["reachability"], f["verdict"]) for f in findings)
     modes = {f["scope"]["analysis_mode"] for f in findings}
     summary = {
         "project": str(project_dir),
@@ -256,6 +324,9 @@ def run(project_dir: Path, deps_path: Path | None, rules_dir: Path, output_dir: 
                      for v in sorted({f["verdict"] for f in findings})},
         "analysis_mode": "codeql" if modes == {"codeql"} else "text_scan" if findings else "none",
         "intel": dict(intel.status),
+        "classifications": {c: sum(1 for f in findings if f["classification"] == c)
+                            for c in sorted({f["classification"] for f in findings})},
+        "policy": policy_summary,
         "fail_on": fail_on,
         "gate_failed": gate,
         "notes": notes,

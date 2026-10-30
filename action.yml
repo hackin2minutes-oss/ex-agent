@@ -22,6 +22,10 @@ inputs:
   fail-on:
     description: "confirmed_reachable (default) or confirmed_exploitable"
     default: "confirmed_reachable"
+  policy-file:
+    description: "Policy file (YAML). When set, it decides the gate instead of fail-on."
+    required: false
+    default: ""
   offline:
     description: Skip OSV, EPSS, KEV and fix-commit lookups
     default: "false"
@@ -53,3 +57,5 @@ runs:
     - ${{ inputs.fix-diffs-dir }}
     - --offline
     - ${{ inputs.offline }}
+    - --policy
+    - ${{ inputs.policy-file }}

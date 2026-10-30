@@ -1,0 +1,98 @@
+"""Ecosystem-aware version comparison.
+
+Maven: a subset of Maven's ComparableVersion. Numbers compare numerically, known
+qualifiers (alpha < beta < milestone < rc < snapshot < release < sp) compare by
+rank, unknown qualifiers sort after the known ones, and a number always sorts
+above a qualifier. Trailing zero and release components are equivalent.
+
+npm: semantic versioning 2.0.0 precedence. Build metadata is ignored.
+
+Any other ecosystem, or any version that does not parse, is "unsupported".
+Callers must treat unsupported as UNKNOWN. Nothing is compared as plain strings.
+"""
+
+import re
+
+_MAVEN_QUALIFIERS = {
+    "alpha": 0, "a": 0,
+    "beta": 1, "b": 1,
+    "milestone": 2, "m": 2,
+    "rc": 3, "cr": 3,
+    "snapshot": 4,
+    "": 5, "ga": 5, "final": 5, "release": 5,
+    "sp": 6,
+}
+_MAVEN_TOKEN = re.compile(r"\d+|[A-Za-z]+")
+_SEMVER = re.compile(
+    r"^v?(?P<major>0|[1-9]\d*)\.(?P<minor>0|[1-9]\d*)\.(?P<patch>0|[1-9]\d*)"
+    r"(?:-(?P<pre>[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$"
+)
+
+MAVEN = "Maven"
+NPM = "npm"
+SUPPORTED_ECOSYSTEMS = {MAVEN, NPM}
+
+
+def _maven_items(version: str) -> list[tuple]:
+    items = []
+    for token in _MAVEN_TOKEN.findall(version):
+        if token.isdigit():
+            items.append((3, int(token)))
+        elif token.lower() in _MAVEN_QUALIFIERS:
+            items.append((2, _MAVEN_QUALIFIERS[token.lower()], ""))
+        else:
+            items.append((2, 7, token.lower()))
+    return items
+
+
+def _maven_pad(other: tuple) -> tuple:
+    # A missing component equals zero next to a number, and the release qualifier next to a qualifier.
+    return (3, 0) if other[0] == 3 else (2, 5, "")
+
+
+def _maven_compare(a: str, b: str) -> int:
+    left, right = _maven_items(a), _maven_items(b)
+    for i in range(max(len(left), len(right))):
+        x = left[i] if i < len(left) else _maven_pad(right[i])
+        y = right[i] if i < len(right) else _maven_pad(left[i])
+        if x != y:
+            return -1 if x < y else 1
+    return 0
+
+
+def _semver_key(version: str):
+    match = _SEMVER.match(version)
+    if not match:
+        return None
+    core = (int(match["major"]), int(match["minor"]), int(match["patch"]))
+    if match["pre"] is None:
+        return core + (1, ())
+    ids = []
+    for ident in match["pre"].split("."):
+        ids.append((0, int(ident), "") if ident.isdigit() else (1, 0, ident))
+    return core + (0, tuple(ids))
+
+
+def _semver_compare(a: str, b: str) -> int | None:
+    ka, kb = _semver_key(a), _semver_key(b)
+    if ka is None or kb is None:
+        return None
+    return (ka > kb) - (ka < kb)
+
+
+def compare(ecosystem: str, a: str, b: str) -> int | None:
+    """Return -1, 0 or 1, or None when the ecosystem or a version is unsupported."""
+    if ecosystem == MAVEN:
+        return _maven_compare(a, b)
+    if ecosystem == NPM:
+        return _semver_compare(a, b)
+    return None
+
+
+def is_affected(ecosystem: str, version: str, introduced: str, fixed: str) -> bool | None:
+    """`introduced` is inclusive and `fixed` is exclusive. None means the check cannot be made."""
+    low = compare(ecosystem, version, introduced)
+    high = compare(ecosystem, version, fixed)
+    if low is None or high is None:
+        return None
+    return low >= 0 and high < 0
