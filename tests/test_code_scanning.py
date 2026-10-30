@@ -143,6 +143,14 @@ class CodeScanningConversionTest(unittest.TestCase):
                                       "zizmor": {"CICD"}, "CodeQL": {"SAST"}})
 
 
+class SarifRegionTest(unittest.TestCase):
+    def test_start_column_without_end_column_omits_end_column(self):
+        from engine import universal_report
+        location = {"path": "api/app.py", "start_line": 4, "end_line": 4, "start_col": 5, "end_col": None}
+        region = universal_report._location({"location": location})["physicalLocation"]["region"]
+        self.assertEqual(region, {"startLine": 4, "endLine": 4, "startColumn": 5})
+
+
 class CodeScanningRunnerTest(unittest.TestCase):
     def test_runner_refuses_missing_ref(self):
         with tempfile.TemporaryDirectory() as tmp:
