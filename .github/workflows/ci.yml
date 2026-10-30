@@ -18,7 +18,13 @@ jobs:
         with:
           python-version: "3.13"
       - name: Install engine requirements
-        run: python3 -m pip install -r requirements.txt
+        run: python3 -m pip install --require-hashes -r requirements.lock
+      - name: Check the dependency lock is current
+        run: |
+          python3 -m pip install "pip-tools==7.6.2"
+          pip-compile --generate-hashes --allow-unsafe --strip-extras --quiet \
+            --output-file "$RUNNER_TEMP/requirements.lock" requirements.txt
+          diff <(grep -v '^#' requirements.lock) <(grep -v '^#' "$RUNNER_TEMP/requirements.lock")
       - name: Run unit tests
         run: PYTHONPATH=. python3 -P -m unittest discover -s tests -t . -v
 
@@ -102,7 +108,7 @@ jobs:
           ./codeql/codeql --version
 
       - name: Install engine requirements
-        run: python3 -m pip install -r requirements.txt
+        run: python3 -m pip install --require-hashes -r requirements.lock
 
       - name: Fetch Spring jars for the CodeQL build
         run: |

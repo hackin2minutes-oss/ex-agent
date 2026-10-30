@@ -20,8 +20,9 @@ RUN groupadd --system --gid 1001 engine \
     && useradd --system --uid 1001 --gid 1001 --no-create-home --shell /usr/sbin/nologin engine
 
 WORKDIR /opt/exploitability
-COPY requirements.txt ./requirements.txt
-RUN pip install --no-cache-dir -r requirements.txt
+COPY requirements.lock ./requirements.lock
+# Installs only the pinned artifacts whose SHA-256 hashes are listed in requirements.lock.
+RUN pip install --no-cache-dir --require-hashes -r requirements.lock
 COPY engine ./engine
 COPY queries ./queries
 COPY rules ./rules

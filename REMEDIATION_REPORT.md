@@ -15,9 +15,9 @@ this change. Any claim that depends on them is marked as pending.
 
 | ID | Finding | Status | Evidence type |
 |---|---|---|---|
-| F-01 | Call-graph truncation destroys edges | PARTIALLY_FIXED (Python call graph; CI pending) | Local verification (23 tests, randomized oracle, measurements); CI not yet green on this head |
-| F-02 | CONFIRMED_EXPLOITABLE without exposure assessment | PARTIALLY_FIXED | Local unit tests; CodeQL CI expectations updated, not run |
-| F-03 | Constant filename satisfies an attacker-input precondition | PARTIALLY_FIXED | Local scenario tests (20) |
+| F-01 | Call-graph truncation destroys edges | FIXED (Python call graph only; limits below) | Local tests and oracle; CI green on merged head (see CI status) |
+| F-02 | CONFIRMED_EXPLOITABLE without exposure assessment | PARTIALLY_FIXED. Not resolved: the audit finding stays open | Unit tests; CodeQL CI verify steps passed (see CI status) |
+| F-03 | Constant filename satisfies an attacker-input precondition | PARTIALLY_FIXED. Not resolved: the audit finding stays open | Scenario tests (22); CodeQL CI verify steps passed |
 | F-04 | NOT_AFFECTED never emitted | FIXED | Local pipeline and unit tests |
 | F-06 | Fictional placeholder rule shipped | FIXED | Hygiene tests; rule removed from `rules/` |
 | F-07 | Docker image runs as root | PARTIALLY_FIXED | Dockerfile changed; image not built here; CI step added, not run |
@@ -25,10 +25,9 @@ this change. Any claim that depends on them is marked as pending.
 
 ## F-01 Call-graph truncation destroys edges
 
-**Status: PARTIALLY_FIXED.** The defect is fixed for the Python call graph, and the local
-evidence below is reproducible. It is not FIXED yet because the GitHub-hosted CI run for
-this head has not passed (see "CI status" below). The graph also remains evidence only and
-does not feed the verdict (see "Remaining limitations").
+**Status: FIXED, for the Python call graph only.** The defect is removed, and the
+evidence is reproducible locally and in merged CI. The limits below still apply. The graph
+is evidence only: it does not feed the verdict, by design.
 
 **Root cause.** In the previous `engine/callgraph.py`, the node cap was checked only inside
 the edge-resolution loop (`if len(graph.nodes) > MAX_NODES: graph.truncated = True; break`).
@@ -82,31 +81,24 @@ against source is covered by the fixture tests (`test_callgraph_and_config.py`) 
 scale tests' known shape (each function calls the next, so the edge count is predictable).
 There is no independent AST oracle for arbitrary code.
 
-### CI status
+### CI status (verified)
 
-Head `7e13c45` on PR #2. Infrastructure and application failures are reported separately:
+Verified with the GitHub API. Recorded here as the audit trail for the status above.
 
-- **Unit tests** job: passed on this head (two runs).
-- **Action (Docker, offline)** job: its new steps pass (the non-root check, the action run,
-  and the report verification). It fails at two upload steps, with two causes. `Upload
-  report` fails with `Artifact storage quota has been hit`. That is **infrastructure**, a
-  repository limit. `Upload SARIF to Code Scanning` fails with no error text, and the same
-  run logs `Resource not accessible by integration`. That is probably **infrastructure**
-  (token permissions), but it is not proven. Neither failure is an application test
-  failure. The same steps passed on the last green base run.
-- **CodeQL call-site and taint** job on `7e13c45`: all 24 verify and run steps passed,
-  including the Python vulnerable and safe apps, the taint positive control, and the
-  JavaScript, TypeScript and Go vulnerable apps with `--exposure internet`, which must
-  fail the gate, and the safe apps, which must pass it. The only failed step was `Upload
-  report`, which failed on the artifact storage quota (**infrastructure**). This is the
-  first real CodeQL evidence in this change. On `12c54cf` the job was still running when
-  this was written.
-- The re-run of the failed job was refused while the workflow was still in progress. The
-  re-run is pending.
-
-F-01 cannot move to FIXED until the Unit tests job passes on the head that includes this
-verification, and until the Action job passes or its failure is confirmed as
-infrastructure with a re-run.
+- **Merged to `main`** as merge commit `61524d1`, from PR #2 (branch `remediation/audit-f01-f08`,
+  head `82a32c9`). PR #2 was marked ready for review and merged by the repository owner.
+- **CI on `61524d1` (`main`), run completed with conclusion success:** Unit tests, CodeQL
+  call-site and taint, and Action (Docker, offline) all succeeded. The Action job's upload
+  steps (`Upload SARIF to Code Scanning` and `Upload report`) also succeeded on this run.
+- **CI on PR head `82a32c9`, attempt 2 of run `41035899604`:** Action, CodeQL and Unit tests
+  all succeeded. Attempt 1 of the same run had failed at the upload steps.
+- **Earlier failures, now superseded:** on `7e13c45`, `12c54cf` and `82a32c9` attempt 1,
+  `Upload report` failed on the artifact storage quota, and `Upload SARIF` failed with
+  `Resource not accessible by integration`. These were infrastructure failures. Every
+  application step passed on every run. The quota no longer blocked `61524d1`.
+- **Not verified:** Code Scanning results themselves. My session token gets HTTP 403 from
+  the code-scanning API, so I could not confirm that alerts were recorded. The SARIF upload
+  step succeeded, which is a weaker claim than seeing the alerts.
 
 ### Remaining limitations
 
@@ -364,3 +356,18 @@ or `AKIA` pattern appears in the tree.
 - GitHub-hosted CI and CodeQL runs. They require a push and are the only verification
   for the CodeQL expectations, the non-root step and the SHA-pinned workflows.
 - F-05, F-09 to F-17 are not in this sprint and are unchanged in the audit matrix.
+
+## Reporting update (follow-up PR 1)
+
+Incomplete analysis is now recorded in `summary.json` and in `findings.sarif`.
+
+- `summary.json` has an `analysis` block. It contains the Python call graph's counts and
+  completeness when a graph was built, the five limits (`max_nodes`, `max_edges`,
+  `max_depth`, `max_paths`, `max_expansions`), the finding IDs whose call-path search was
+  incomplete, and `bounded_analysis_complete`. That field is `true` only when no
+  incompleteness was detected. It is not a claim that the analysis is exhaustive.
+- `findings.sarif` writes incomplete analysis as standard SARIF 2.1.0
+  `invocations[].toolExecutionNotifications`, with level `warning`. No custom SARIF
+  properties are used. The output validates against the official OASIS 2.1.0 schema
+  (`scripts/audit_validate_sarif.py`, two generated files, both VALID).
+- The Markdown report already listed incomplete call graphs. That section is unchanged.

@@ -9,7 +9,7 @@ pending" means the evidence needs a GitHub-hosted run that has not happened yet.
 
 | ID | Finding | Original status | Updated status | Evidence | Remaining | Priority |
 |---|---|---|---|---|---|---|
-| F-01 | Call-graph truncation destroys edges; truncation not surfaced | BROKEN (P0) | PARTIALLY_FIXED (Python call graph; CI pending) | Local: `tests/test_callgraph_scale.py` (13). Measured: old code 0 edges at 1,000 and 4,000 files; new code 30,001 edges at 1,000 files and `complete: false` with `node_limit` at 4,000 | CI pending. Python only. Beyond 50,000 nodes the graph is incomplete by design | P0 (open until CI is green) |
+| F-01 | Call-graph truncation destroys edges; truncation not surfaced | BROKEN (P0) | FIXED (Python call graph only; limits stated) | Local: `tests/test_callgraph_scale.py` (13). Measured: old code 0 edges at 1,000 and 4,000 files; new code 30,001 edges at 1,000 files and `complete: false` with `node_limit` at 4,000 | CI pending. Python only. Beyond 50,000 nodes the graph is incomplete by design | P0 (open until CI is green) |
 | F-02 | CONFIRMED_EXPLOITABLE asserted without exposure or authentication | BROKEN (P0) | PARTIALLY_FIXED | Local: `tests/test_exploitability.py` exposure tests. `--exposure` and action input, default `unknown` | Exposure is operator-declared. Authentication only checks for access-control code. CodeQL CI expectations updated (JS, TS, Go vulnerable runs) but not run | P0 (reduced) |
 | F-03 | Precondition is a text match; constant argument satisfies attacker-input check | BROKEN (P0) | PARTIALLY_FIXED | Local: `tests/test_preconditions_taint.py` (22), `tests/test_go.py` rule test. Python `ast` argument tracing; Go and JS file-scoped lexical taint | Interprocedural flow unsupported (returns unverified). Go and JS taint is file-scoped, so a false `satisfied` is possible. Werkzeug debugger checks still regex | P0 (reduced) |
 | F-04 | NOT_AFFECTED never emitted | BROKEN (P1) | FIXED | Local: `tests/test_not_affected.py` (5); pipeline and JavaScript tests now expect `not_affected` for fixed versions | Depends on curated fixed-version data, which was not re-verified | P1 (closed) |
@@ -37,7 +37,7 @@ pending" means the evidence needs a GitHub-hosted run that has not happened yet.
 
 | Criterion | Status | Basis |
 |---|---|---|
-| Truncation never destroys valid edges | Met locally for the Python call graph; CI pending | Measured; `test_callgraph_scale` |
+| Truncation never destroys valid edges | Met for the Python call graph; merged CI green on `61524d1` | Measured; `test_callgraph_scale` |
 | Incomplete analysis never yields an unjustified safe verdict | Met for `NOT_AFFECTED` and `not_reachable`, which require complete analysis; precondition "unknown" never yields a safe verdict | `test_not_affected`, `test_preconditions_taint`, `test_exploitability` |
 | Constant input never satisfies attacker-controlled requirements | Met for sink checks (Python, Go, JS) | `test_preconditions_taint` constant cases |
 | CONFIRMED_EXPLOITABLE requires sufficient evidence | Partly met: requires taint, preconditions, no mitigation, no access-control code, and declared internet exposure. Authentication effectiveness is not assessed | `test_exploitability` |

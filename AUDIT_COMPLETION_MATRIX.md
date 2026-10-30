@@ -1,5 +1,11 @@
 # Completion Matrix
 
+> **Remediation addendum (follow-up PR 1).** The rows below are the audit's original status and
+> are kept unchanged. Current status for the remediated findings: F-01 is FIXED for the Python
+> call graph, with its limits stated in `REMEDIATION_REPORT.md`. F-02 and F-03 are PARTIALLY_FIXED
+> and not resolved. F-04 and F-06 are FIXED. F-07 and F-08 are updated in the supply-chain follow-up
+> (PR 2). See `UPDATED_AUDIT_COMPLETION_MATRIX.md` for the current matrix.
+
 Status codes: COMPLETE (implemented and verified by meaningful tests), PARTIAL, MISSING, BROKEN (fails or produces incorrect behaviour), UNVERIFIED, NOT_APPLICABLE.
 
 Priority: P0 critical, P1 high, P2 medium, P3 future. "CI" means the GitHub Actions run on `main`; "local" means this sandbox.

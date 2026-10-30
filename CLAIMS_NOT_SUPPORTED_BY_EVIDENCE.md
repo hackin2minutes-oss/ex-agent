@@ -1,5 +1,11 @@
 # Claims Not Supported by Evidence
 
+> **Remediation addendum (follow-up PR 1).** C-06 (call-graph bound): the claim is now supported
+> for the Python call graph, because the bound is enforced during construction and the limits
+> are reported in `summary.json`. C-23 (NOT_AFFECTED is available in output): the claim is
+> supported, since the pipeline emits NOT_AFFECTED (F-04). C-01, C-03 and the F-02 and F-03
+> entries are unchanged. C-15 and C-16 (container and action pins) are addressed in follow-up PR 2.
+
 Each entry quotes the claim, gives the location, and states what the evidence shows.
 
 | # | Claim (quoted or summarised) | Location | What the evidence shows | Status |

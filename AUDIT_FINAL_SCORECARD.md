@@ -1,5 +1,11 @@
 # Final Scorecard
 
+> **Remediation addendum (follow-up PR 1).** The scores below are the audit's and are not
+> re-scored. Since the audit: F-01 is FIXED for the Python call graph (CI green on merged
+> `main`), F-04 and F-06 are FIXED, and F-02 and F-03 are PARTIALLY_FIXED and not resolved.
+> The "three P0 defects" cap in this scorecard still applies to F-02 and F-03, so the overall
+> rating stays at 2. See `REMEDIATION_REPORT.md`.
+
 Scale: 0 missing, 1 conceptual or placeholder, 2 basic with significant limitations, 3 functional with meaningful tests, 4 mature and well tested, 5 enterprise grade with demonstrated reliability.
 
 Method: each category is scored on the evidence in this audit. The overall score is the mean of the scored categories. AI safety is not applicable (there is no AI component) and is excluded from the mean. A critical defect caps the overall rating, so a high average cannot conceal it.
