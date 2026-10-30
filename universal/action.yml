@@ -60,7 +60,7 @@ inputs:
     default: "20000"
 runs:
   using: docker
-  image: ../Dockerfile
+  image: docker://ghcr.io/hackin2minutes-oss/exploitability-agent@sha256:e59a19a6feb98b63c93418f7ee58a4ef4d5b32d1aacfd2e743d0b6335a3f05eb
   entrypoint: python3
   args:
     - -P
