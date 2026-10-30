@@ -88,6 +88,72 @@ class FixturePipelineTest(PipelineTestCase):
         self.assertEqual(summary["findings"], 0)
 
 
+class GhsaNvdPipelineTest(PipelineTestCase):
+    """GHSA candidates and NVD enrichment, driven by recorded provider responses."""
+
+    def setUp(self):
+        super().setUp()
+        self.project = self.tmp / "app"
+        (self.project / "src").mkdir(parents=True)
+        (self.project / "src/Handler.java").write_text("class Handler {}\n")
+        self.deps = self.tmp / "deps.json"
+
+    def write_deps(self, version):
+        self.deps.write_text(json.dumps({"dependencies": [{
+            "ecosystem": "Maven", "name": "com.acme:lib", "version": version, "scope": "runtime"}]}))
+
+    def intel(self, ghsa_records, nvd_record=None):
+        ghsa_body = json.dumps(ghsa_records).encode()
+        nvd_body = json.dumps({"vulnerabilities": [{"cve": nvd_record}]}).encode() if nvd_record else b'{"vulnerabilities": []}'
+
+        def fetch(url, body=None):
+            if url.startswith(intel_module.GHSA_URL):
+                return ghsa_body
+            if url.startswith(intel_module.NVD_URL):
+                return nvd_body
+            raise OSError("not recorded")
+        return intel_module.Intel(fetch=fetch, sleep=lambda s: None)
+
+    def test_ghsa_and_nvd_enrich_the_finding(self):
+        from engine import advisories
+        self.write_deps("2.0.0")
+        ghsa = json.loads((ROOT / "tests/fixtures/intel/ghsa-response.json").read_text())
+        nvd = json.loads((ROOT / "tests/fixtures/intel/nvd-response.json").read_text())["vulnerabilities"][0]["cve"]
+        summary, out = self.run_pipeline(self.project, self.deps, rules=self.tmp / "none",
+                                         intel=self.intel(ghsa, nvd))
+        finding = json.loads((out / "evidence.json").read_text())["findings"][0]
+        self.assertEqual(finding["vulnerability"]["cve"], "CVE-2099-0001")
+        self.assertEqual(finding["vulnerability"]["cvss"], 9.8)
+        self.assertEqual(finding["vulnerability"]["severity"], "CRITICAL")
+        self.assertEqual(finding["vulnerability"]["cwes"], ["CWE-502"])
+        self.assertIn("ghsa", finding["evidence"][1]["sources"])
+        self.assertEqual(finding["stages"]["B_version"], "CONFIRMED")
+        self.assertEqual(finding["classification"], "vulnerable_component_only")
+        self.assertEqual(summary["intel_health"]["ghsa"]["succeeded"], 1)
+        self.assertEqual(summary["intel_health"]["nvd"]["succeeded"], 1)
+        self.assertIsNotNone(advisories)
+
+    def test_conflicting_ghsa_range_is_unknown_and_disclosed(self):
+        self.write_deps("2.5.0")  # outside the recorded range >= 2.0.0, < 2.4.1
+        ghsa = json.loads((ROOT / "tests/fixtures/intel/ghsa-response.json").read_text())
+        summary, out = self.run_pipeline(self.project, self.deps, rules=self.tmp / "none",
+                                         intel=self.intel(ghsa))
+        finding = json.loads((out / "evidence.json").read_text())["findings"][0]
+        self.assertEqual(finding["stages"]["B_version"], "UNKNOWN")
+        self.assertEqual(finding["classification"], "unknown")
+        self.assertTrue(any("does not match" in lim for lim in finding["scope"]["limitations"]))
+
+    def test_nvd_outage_uses_ghsa_fields_and_leaves_cwes_empty(self):
+        self.write_deps("2.0.0")
+        ghsa = json.loads((ROOT / "tests/fixtures/intel/ghsa-response.json").read_text())
+        summary, out = self.run_pipeline(self.project, self.deps, rules=self.tmp / "none",
+                                         intel=self.intel(ghsa, nvd_record=None))
+        finding = json.loads((out / "evidence.json").read_text())["findings"][0]
+        self.assertEqual(finding["vulnerability"]["severity"], "CRITICAL")  # from GHSA
+        self.assertEqual(finding["vulnerability"]["cwes"], [])
+        self.assertEqual(finding["vulnerability"]["cvss"], 9.8)  # falls back to the GHSA score
+
+
 class PolicyGateTest(PipelineTestCase):
     """The policy file decides the gate when one is supplied."""
 

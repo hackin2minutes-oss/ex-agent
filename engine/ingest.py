@@ -142,10 +142,13 @@ def parse_requirements(text: str) -> list[dict]:
 
 def detect_and_parse(path: Path) -> list[dict]:
     text = path.read_text(encoding="utf-8")
-    from engine import lockfiles  # local import: lockfiles depends on this module
+    from engine import lockfiles, sbom  # local imports: both depend on this module
     if path.name in lockfiles.PARSERS:
         return lockfiles.PARSERS[path.name](text)
     if path.suffix == ".json":
+        components = sbom.detect(text)
+        if components is not None:
+            return components
         data = json.loads(text)
         if "packages" in data:
             return parse_npm_lock(text)

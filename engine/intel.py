@@ -7,14 +7,20 @@ turned into a zero score or a "not exploited" claim.
 
 import hashlib
 import json
+import os
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from pathlib import Path
+
+from engine import advisories
 
 OSV_URL = "https://api.osv.dev/v1/query"
 EPSS_URL = "https://api.first.org/data/v1/epss"
 KEV_URL = "https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json"
+GHSA_URL = "https://api.github.com/advisories"
+NVD_URL = "https://services.nvd.nist.gov/rest/json/cves/2.0"
 EPSS_BATCH = 100
 USER_AGENT = "exploitability-agent/0.1"
 MAX_ATTEMPTS = 3
@@ -28,6 +34,11 @@ def http_fetch(url: str, body: dict | None = None, timeout: int = 30) -> bytes:
     if body is not None:
         data = json.dumps(body).encode("utf-8")
         headers["Content-Type"] = "application/json"
+    if url.startswith("https://api.github.com/"):
+        headers["Accept"] = "application/vnd.github+json"
+        token = os.environ.get("GITHUB_TOKEN")
+        if token:  # sent to GitHub only, never logged or written to reports
+            headers["Authorization"] = f"Bearer {token}"
     request = urllib.request.Request(url, data=data, headers=headers)
     with urllib.request.urlopen(request, timeout=timeout) as response:
         return response.read()
@@ -74,6 +85,7 @@ class Intel:
         self._sleep = sleep
         self.status: dict[str, str] = {}
         self.health: dict[str, dict] = {}
+        self.last_url: str | None = None
 
     def _request(self, source: str, url: str, body: dict | None = None) -> bytes | None:
         if self.offline:
@@ -150,6 +162,26 @@ class Intel:
         if raw is None:
             return None
         return {v["cveID"] for v in json.loads(raw).get("vulnerabilities", [])}
+
+    def ghsa_advisories(self, ecosystem: str, package: str, version: str) -> list[dict] | None:
+        """Advisories GitHub reports as affecting this exact package version."""
+        eco = advisories.GHSA_ECOSYSTEM.get(ecosystem)
+        if eco is None:
+            return None
+        self.last_url = (f"{GHSA_URL}?ecosystem={eco}&per_page=100"
+                         f"&affects={urllib.parse.quote(package, safe=':/')}@{urllib.parse.quote(version, safe='')}")
+        raw = self._request("ghsa", self.last_url)
+        if raw is None:
+            return None
+        return [advisories.normalise_ghsa(item) for item in json.loads(raw)]
+
+    def nvd_cve(self, cve_id: str) -> dict | None:
+        url = f"{NVD_URL}?cveId={urllib.parse.quote(cve_id, safe='')}"
+        raw = self._request("nvd", url)
+        if raw is None:
+            return None
+        items = json.loads(raw).get("vulnerabilities", [])
+        return advisories.normalise_nvd(items[0]) if items else None
 
     def commit_diff(self, commit_url: str) -> str | None:
         if not commit_url.startswith("https://github.com/") or "/commit/" not in commit_url:

@@ -10,11 +10,13 @@ from pathlib import Path
 
 from pathlib import Path
 
-from engine import callsites, codeql, context, exploitability as xp, ingest, intel as intel_module
+from engine import advisories, callsites, codeql, context, exploitability as xp, ingest, intel as intel_module
 from engine import policy, preconditions, report, symbols, verdict, versions
 
 SHIPPED_SCOPE_EXCLUDED = {"test", "dev"}
 ECOSYSTEMS_QUERIED = {"Maven", "npm", "PyPI", "Go", "crates.io", "Packagist", "RubyGems", "NuGet"}
+NVD_LOOKUP_LIMIT = 25  # NVD allows few unauthenticated requests; a run enriches at most this many CVEs
+GHSA_QUERY_LIMIT = 300  # one request per dependency; stops a very large inventory from exhausting the rate limit
 TOOL_VERSION = "0.1.0"
 
 
@@ -54,6 +56,40 @@ def collect_candidates(deps: list[dict], rules: list[dict], intel) -> dict:
                 # OSV answers the version question for this exact version.
                 "version_status": xp.CONFIRMED,
             })
+
+    ghsa_queries = 0
+    for dep in deps:
+        if ghsa_queries >= GHSA_QUERY_LIMIT:
+            break
+        if dep["ecosystem"] not in ECOSYSTEMS_QUERIED:
+            continue
+        ghsa_queries += 1
+        for advisory in intel.ghsa_advisories(dep["ecosystem"], dep["name"], dep["version"]) or []:
+            ranges = [r for r in advisory["ranges"]
+                      if r["package"] == dep["name"]
+                      and advisories.GHSA_ECOSYSTEM.get(dep["ecosystem"]) == r["ecosystem"]]
+            if not ranges:
+                continue
+            checks = [advisories.evaluate_range(dep["ecosystem"], dep["version"], r["vulnerable_range"])
+                      for r in ranges]
+            key = (_cve_or_id(advisory["id"], advisory["cve"]), dep["ecosystem"], dep["name"], dep["version"])
+            cand = candidates.setdefault(key, {
+                "key": key,
+                "cve": advisory["cve"],
+                "vuln_id": advisory["id"],
+                "aliases": [a for a in (advisory["id"], advisory["cve"]) if a],
+                "summary": advisory["summary"],
+                "fix_commits": [],
+                "dependency": dep,
+                "curated": None,
+                "sources": ["ghsa"],
+                # The provider filtered by this version. A range that disagrees is kept as UNKNOWN and noted.
+                "version_status": xp.CONFIRMED if any(c is True for c in checks) else xp.UNKNOWN,
+                "conflict": any(c is False for c in checks) and not any(c is True for c in checks),
+            })
+            cand.setdefault("ghsa", advisory)
+            if "ghsa" not in cand["sources"]:
+                cand["sources"].append("ghsa")
 
     for rule in rules:
         for dep in deps:
@@ -189,6 +225,7 @@ def analyse_candidate(cand: dict, project_dir: Path, ctx: dict) -> dict:
     entry_points = context.find_entry_points(project_dir)
     auth_hints = context.access_control_hints(project_dir)
 
+    nvd = cand.get("nvd")
     mitigated = any(c.get("kind") == "mitigated_by" and c.get("result") == "not_satisfied"
                     for c in pre_details)
     kev_status = None
@@ -207,8 +244,13 @@ def analyse_candidate(cand: dict, project_dir: Path, ctx: dict) -> dict:
         "cve": cand["cve"],
         "aliases": cand["aliases"],
         "summary": cand["summary"],
-        "severity": cand["curated"]["severity"] if cand["curated"] else None,
-        "cvss": cand["curated"]["cvss"] if cand["curated"] else None,
+        "severity": cand["curated"]["severity"] if cand["curated"] else
+                    ((nvd or {}).get("severity") or ((cand.get("ghsa") or {}).get("severity") or "")).upper() or None,
+        "cvss": cand["curated"]["cvss"] if cand["curated"] else
+                (nvd or {}).get("cvss_score") or (cand.get("ghsa") or {}).get("cvss_score"),
+        "cwes": (nvd or {}).get("cwes", []),
+        "references": sorted(set((nvd or {}).get("references", []))
+                             | set((cand.get("ghsa") or {}).get("references", []))),
         "epss": ctx["epss"].get(cand["cve"]),
         "kev": (cand["cve"] in ctx["kev"]) if ctx["kev"] is not None and cand["cve"] else None,
     }
@@ -248,6 +290,9 @@ def analyse_candidate(cand: dict, project_dir: Path, ctx: dict) -> dict:
             "CodeQL CLI not available or failed; reachability is partial",
         ]
     limitations += notes
+    if cand.get("conflict"):
+        limitations.append("GHSA reports this version as affected but its range does not match; "
+                           "version applicability is treated as UNKNOWN")
 
     return {
         "id": f"{cand['cve'] or cand['vuln_id']}@{dep['name']}:{dep['version']}",
@@ -281,6 +326,10 @@ def run(project_dir: Path, deps_path: Path | None, rules_dir: Path, output_dir: 
     cves = [c["cve"] for c in candidates.values() if c["cve"]]
     epss = intel.epss_scores(cves) if cves else {}
     kev = intel.kev_cves() if cves else None
+    for cand in list(candidates.values())[:NVD_LOOKUP_LIMIT]:
+        if cand["cve"]:
+            cand["nvd"] = intel.nvd_cve(cand["cve"])
+    unresolved = sum(1 for d in deps if d["ecosystem"] == "unknown")
 
     notes: list[str] = []
     codeql_bin = codeql.find_codeql(codeql_path)
@@ -319,6 +368,7 @@ def run(project_dir: Path, deps_path: Path | None, rules_dir: Path, output_dir: 
     summary = {
         "project": str(project_dir),
         "dependencies_analysed": len(deps),
+        "unresolved_dependencies": unresolved,
         "findings": len(findings),
         "verdicts": {v: sum(1 for f in findings if f["verdict"] == v)
                      for v in sorted({f["verdict"] for f in findings})},

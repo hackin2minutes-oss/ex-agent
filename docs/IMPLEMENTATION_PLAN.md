@@ -9,11 +9,11 @@ Baseline: `docs/INITIAL_REPOSITORY_ASSESSMENT.md`. Each stage ends with tests pa
 3. **Policy engine** (`engine/policy.py`). YAML policy with validated actions (block / warn / report) per classification and severity. Gate decisions come from the policy when one is supplied.
 4. **Security and privacy documents** (`SECURITY.md`, `THREAT_MODEL.md`, `PRIVACY.md`).
 
-## Stage 2: intelligence and inventory breadth (in progress)
+## Stage 2: intelligence and inventory breadth (complete, tested with recorded responses)
 
 Done: retry with backoff and Retry-After for OSV, EPSS and KEV; per-source health in `summary.json`; lockfile parsers for yarn, pnpm, poetry, uv, Pipfile, go.sum, Cargo, Composer, Gemfile and NuGet; OSV queries for those ecosystems.
 
-Not done: GHSA and NVD adapters; CycloneDX and SPDX ingestion.
+Also done: CycloneDX and SPDX JSON ingestion (components identified by purl; unresolved components are counted); GHSA adapter with GitHub range evaluation; NVD adapter for CVSS, severity and CWE; a conflicting GHSA range is reported as UNKNOWN. Live provider calls have not been made from CI.
 
 - GHSA and NVD adapters. Offline replay of recorded responses.
 - CycloneDX and SPDX ingestion.

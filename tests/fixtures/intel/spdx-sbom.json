@@ -1,0 +1,11 @@
+{
+  "spdxVersion": "SPDX-2.3",
+  "name": "fixture",
+  "packages": [
+    {"name": "Django", "versionInfo": "4.2.1",
+     "externalRefs": [{"referenceCategory": "PACKAGE-MANAGER", "referenceType": "purl", "referenceLocator": "pkg:pypi/Django"}]},
+    {"name": "unpinned", "versionInfo": "NOASSERTION",
+     "externalRefs": [{"referenceCategory": "PACKAGE-MANAGER", "referenceType": "purl", "referenceLocator": "pkg:cargo/unpinned"}]},
+    {"name": "no-purl", "versionInfo": "1.0"}
+  ]
+}
