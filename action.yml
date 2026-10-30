@@ -1,0 +1,55 @@
+name: Exploitability Analysis
+description: >
+  Reports whether vulnerable dependency code is reachable from the application,
+  separating reachability from exploitability preconditions.
+inputs:
+  project-dir:
+    description: Project root to analyse, relative to the workspace
+    default: "."
+  deps:
+    description: >
+      Resolved dependency file produced by the build tool (for example
+      maven-tree.txt, gradle-deps.txt, package-lock.json or requirements.txt).
+      Default: first known file in the project.
+    required: false
+    default: ""
+  rules-dir:
+    description: Directory of curated vulnerability rules
+    default: "rules"
+  output-dir:
+    description: Where reports are written
+    default: "exploitability-report"
+  fail-on:
+    description: "confirmed_reachable (default) or confirmed_exploitable"
+    default: "confirmed_reachable"
+  offline:
+    description: Skip OSV, EPSS, KEV and fix-commit lookups
+    default: "false"
+  build-command:
+    description: Build command for the CodeQL database (default: CodeQL autobuild)
+    required: false
+    default: ""
+  fix-diffs-dir:
+    description: Directory of <sha>.diff files used before fetching fix commits
+    required: false
+    default: ""
+runs:
+  using: docker
+  image: Dockerfile
+  args:
+    - --project-dir
+    - ${{ inputs.project-dir }}
+    - --deps
+    - ${{ inputs.deps }}
+    - --rules-dir
+    - ${{ inputs.rules-dir }}
+    - --output-dir
+    - ${{ inputs.output-dir }}
+    - --fail-on
+    - ${{ inputs.fail-on }}
+    - --build-command
+    - ${{ inputs.build-command }}
+    - --fix-diffs-dir
+    - ${{ inputs.fix-diffs-dir }}
+    - --offline
+    - ${{ inputs.offline }}

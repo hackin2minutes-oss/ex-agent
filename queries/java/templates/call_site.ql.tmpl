@@ -1,0 +1,16 @@
+/**
+ * @name Call to {{CLASS}}.{{METHOD}}
+ * @description Finds application call sites of a vulnerable library method.
+ * @id sawone/java-call-{{ID}}
+ * @kind problem
+ * @problem.severity warning
+ */
+
+import java
+
+from MethodAccess call, Method m
+where
+  m = call.getMethod() and
+  m.getDeclaringType().hasQualifiedName("{{PACKAGE}}", "{{CLASS}}") and
+  m.hasName("{{METHOD}}")
+select call, "Calls vulnerable method {{CLASS}}.{{METHOD}}()"

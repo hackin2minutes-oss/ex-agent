@@ -1,0 +1,4 @@
+name: sawone/exploitability-java
+version: 0.1.0
+dependencies:
+  codeql/java-all: "*"

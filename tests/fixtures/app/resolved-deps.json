@@ -1,0 +1,21 @@
+{
+  "project": "fixture-app",
+  "manifest": "pom.xml",
+  "note": "Stand-in for dependency resolution. The same tree is in maven-tree.txt.",
+  "dependencies": [
+    {
+      "ecosystem": "Maven",
+      "name": "com.example:vulnerable-library",
+      "version": "2.4.0",
+      "scope": "runtime",
+      "resolved_via": ["fixture-app"]
+    },
+    {
+      "ecosystem": "Maven",
+      "name": "org.springframework:spring-web",
+      "version": "6.1.0",
+      "scope": "runtime",
+      "resolved_via": ["fixture-app"]
+    }
+  ]
+}

@@ -1,0 +1,5 @@
+com.example:fixture-app:jar:1.0.0
++- com.example:vulnerable-library:jar:2.4.0:compile
+|  \- com.example:transitive-helper:jar:1.2.0:compile
+\- org.springframework:spring-web:jar:6.1.0:compile
+   \- org.springframework:spring-core:jar:6.1.0:compile

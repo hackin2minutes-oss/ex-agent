@@ -1,0 +1,34 @@
+/**
+ * @name Remote input reaches {{CLASS}}.{{METHOD}}
+ * @description Data-flow from remote input (HTTP parameters, bodies, headers) to an
+ *              argument of a vulnerable library method.
+ * @id sawone/java-taint-{{ID}}
+ * @kind path-problem
+ * @problem.severity error
+ */
+
+import java
+import semmle.code.java.dataflow.DataFlow
+import semmle.code.java.dataflow.FlowSources
+import semmle.code.java.dataflow.TaintTracking
+
+module VulnConfig implements DataFlow::ConfigSig {
+  predicate isSource(DataFlow::Node source) { source instanceof RemoteFlowSource }
+
+  predicate isSink(DataFlow::Node sink) {
+    exists(MethodAccess call |
+      call.getMethod().getDeclaringType().hasQualifiedName("{{PACKAGE}}", "{{CLASS}}") and
+      call.getMethod().hasName("{{METHOD}}") and
+      sink.asExpr() = call.getAnArgument()
+    )
+  }
+}
+
+module VulnFlow = TaintTracking::Global<VulnConfig>;
+
+import VulnFlow::PathGraph
+
+from VulnFlow::PathNode source, VulnFlow::PathNode sink
+where VulnFlow::flowPath(source, sink)
+select sink.getNode(), source, sink, "Remote input flows into {{CLASS}}.{{METHOD}}()",
+  source.getNode(), "remote input"
