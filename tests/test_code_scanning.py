@@ -83,6 +83,16 @@ class CodeScanningFetchTest(unittest.TestCase):
             code_scanning.fetch_alerts("repo", "refs/heads/main", "token", opener=pages_opener([[]]))
 
 
+class OwnAlertsTest(unittest.TestCase):
+    def test_the_engines_own_uploads_are_not_read_back(self):
+        flagged = [alert(1), alert(2, tool="sawone-universal", rule="zizmor/self-repository",
+                                   path=".github/workflows/ci.yml", severity="medium")]
+        with mock.patch.object(code_scanning, "_default_opener",
+                               lambda request: FakeResponse(flagged)):
+            alerts = code_scanning.fetch_alerts("owner/repo", "refs/heads/main", "token")
+        self.assertEqual([a["number"] for a in alerts], [1])
+
+
 class CodeScanningConversionTest(unittest.TestCase):
     def test_one_sarif_document_per_tool(self):
         documents = code_scanning.alerts_to_sarif([

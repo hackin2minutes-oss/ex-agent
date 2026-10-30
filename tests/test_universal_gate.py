@@ -9,7 +9,8 @@ from pathlib import Path
 
 from engine import universal_run
 from engine.universal import (
-    CONFIRMED, CONFIRMED_EXPLOITABLE, Condition, Engine, ModelError, Registry, make_assessment,
+    CONFIRMED, CONFIRMED_EXPLOITABLE, POTENTIALLY_EXPLOITABLE, UNKNOWN_STATUS, Condition, Engine, ModelError, Registry,
+    make_assessment,
 )
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures" / "sast"
@@ -30,6 +31,23 @@ class ConfirmingEngine(Engine):
                                exposure=context["exposure"])
 
 
+class PotentialEngine(Engine):
+    name = "stub-potential"
+    categories = ("SAST",)
+
+    def assess(self, finding, context):
+        conditions = {"attacker_influence": Condition(UNKNOWN_STATUS)}
+        return make_assessment(POTENTIALLY_EXPLOITABLE, reason="stub", engine=self.name,
+                               conditions=conditions, evidence=[], exposure=context["exposure"])
+
+
+def potential_registry():
+    registry = Registry()
+    registry.register_adapter(universal_run.build_registry().adapter("semgrep"))
+    registry.register_engine(PotentialEngine())
+    return registry
+
+
 class GateTest(unittest.TestCase):
     def setUp(self):
         self.tmp = Path(tempfile.mkdtemp())
@@ -37,16 +55,16 @@ class GateTest(unittest.TestCase):
         self.out = self.tmp / "out"
 
     def test_default_gate_passes_on_potential_only_results(self):
-        summary = universal_run.run(REAL, PROJECT, self.out)
+        summary = universal_run.run(REAL, PROJECT, self.out, registry=potential_registry())
+        self.assertEqual(summary["verdicts"]["POTENTIALLY_EXPLOITABLE"], 3)
         self.assertEqual(summary["gate"], {"fail_on": "confirmed_exploitable", "failed": False,
                                            "failing_findings": []})
-        self.assertEqual(universal_run.main(["--input", str(REAL), "--project-dir", str(PROJECT),
-                                             "--output-dir", str(self.out)]), 0)
 
     def test_stricter_gate_fails_on_potential_results(self):
-        self.assertEqual(universal_run.main(["--input", str(REAL), "--project-dir", str(PROJECT),
-                                             "--output-dir", str(self.out),
-                                             "--fail-on", "potentially_exploitable"]), 1)
+        summary = universal_run.run(REAL, PROJECT, self.out, fail_on="potentially_exploitable",
+                                    registry=potential_registry())
+        self.assertTrue(summary["gate"]["failed"])
+        self.assertEqual(len(summary["gate"]["failing_findings"]), 3)
 
     def test_default_gate_fails_on_a_confirmed_verdict(self):
         registry = Registry()
