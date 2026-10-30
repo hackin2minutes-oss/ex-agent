@@ -25,7 +25,7 @@ import signal
 import sys
 from pathlib import Path
 
-from engine import code_scanning, provenance, weakness
+from engine import code_scanning, deployment_context, evidence_graph, provenance, weakness
 from engine import findings as sca_findings
 from engine import pipeline, report, sca_universal, universal, universal_report
 from engine import guidance
@@ -42,6 +42,7 @@ from engine.rasp import RaspAdapter, RaspEngine
 from engine.nuclei_adapter import NucleiAdapter
 from engine.sast import SastEngine
 from engine.sarif_adapter import SarifAdapter
+from engine.threat_model import ThreatModelAdapter, ThreatModelEngine
 from engine.secrets_engine import SecretsEngine
 from engine.semgrep_adapter import SemgrepAdapter
 from engine.trivy_config_adapter import TrivyConfigAdapter
@@ -77,6 +78,7 @@ def build_registry() -> Registry:
     registry.register_adapter(SarifAdapter())
     registry.register_adapter(IastAdapter())
     registry.register_adapter(RaspAdapter())
+    registry.register_adapter(ThreatModelAdapter())
     registry.register_engine(SastEngine())
     registry.register_engine(IacEngine())
     registry.register_engine(CicdEngine())
@@ -85,6 +87,7 @@ def build_registry() -> Registry:
     registry.register_engine(DastEngine())
     registry.register_engine(IastEngine())
     registry.register_engine(RaspEngine())
+    registry.register_engine(ThreatModelEngine())
     return registry
 
 
@@ -225,7 +228,7 @@ def run(inputs, project_dir: Path, output_dir: Path, *, exposure: str = "unknown
         adapter_name: str | None = None, fail_on: str = "confirmed_exploitable",
         registry: Registry | None = None, offline: bool = True,
         rules_dir: Path = DEFAULT_RULES, max_report_bytes: int = MAX_REPORT_BYTES,
-        max_records: int = MAX_RECORDS) -> dict:
+        max_records: int = MAX_RECORDS, context_document: dict | None = None) -> dict:
     if fail_on not in GATE_VERDICTS:
         raise ModelError(f"unknown gate: {fail_on}")
     if exposure not in EXPOSURES:
@@ -234,6 +237,7 @@ def run(inputs, project_dir: Path, output_dir: Path, *, exposure: str = "unknown
     if not input_paths:
         raise ModelError("no scanner report was given")
     registry = registry or build_registry()
+    deployment = deployment_context.load(context_document) if context_document is not None else None
 
     diagnostics: list[str] = []
     findings: list[dict] = []
@@ -302,6 +306,8 @@ def run(inputs, project_dir: Path, output_dir: Path, *, exposure: str = "unknown
 
     for finding in findings:
         finding["exploitability_context"]["exposure"] = exposure
+    if deployment is not None:
+        deployment_context.apply_exposure(findings, deployment, project_dir.resolve())
     if sca_inputs:
         sca_results = _run_sca(sca_inputs, project_dir.resolve(), output_dir, exposure=exposure,
                                offline=offline, rules_dir=rules_dir, diagnostics=diagnostics)
@@ -320,7 +326,8 @@ def run(inputs, project_dir: Path, output_dir: Path, *, exposure: str = "unknown
                           for e in application.entries()]
     assessed = universal.assess_all(unassessed, registry, {"project_dir": project_dir.resolve(),
                                                            "exposure": exposure,
-                                                           "application": application})
+                                                           "application": application,
+                                                           "deployment": deployment})
     assessed = [f for f in findings if "assessment" in f] + assessed
     assessed = [guidance.enrich(f) for f in _merge_duplicates(assessed)]
     limitations = sorted({item for finding in assessed for item in finding["assessment"]["limitations"]})
@@ -344,8 +351,24 @@ def run(inputs, project_dir: Path, output_dir: Path, *, exposure: str = "unknown
     if application is not None:
         summary["application"] = application.search_summary()
         summary["attack_surface"] = attack_surface
+    graph = evidence_graph.correlate(assessed, deployment or deployment_context.repository_only())
+    summary["deployment_context"] = "provided" if deployment is not None else "repository-only"
+    summary["evidence_graph"] = {
+        "nodes": len(graph.nodes), "edges": len(graph.edges),
+        "attack_paths": evidence_graph.attack_paths(graph),
+        "not_correlated": list(evidence_graph.NOT_CORRELATED),
+    }
     universal_report.write_outputs(output_dir, assessed, summary, TOOL_VERSION, diagnostics)
+    (output_dir / "evidence-graph.json").write_text(json.dumps(
+        {"nodes": list(graph.nodes.values()), "edges": graph.edges,
+         "attack_paths": summary["evidence_graph"]["attack_paths"],
+         "not_correlated": summary["evidence_graph"]["not_correlated"]}, indent=2) + "\n", encoding="utf-8")
     return summary
+
+
+def _read_context(path: Path | None) -> dict | None:
+    """The context document, or None when no context file was given. An unreadable file is refused by the caller."""
+    return json.loads(path.read_text(encoding="utf-8")) if path else None
 
 
 def _optional_path(value: str) -> Path | None:
@@ -392,6 +415,8 @@ def main(argv: list[str] | None = None) -> int:
                         help="true to analyse a project whose working tree has uncommitted changes")
     parser.add_argument("--allow-commit-mismatch", type=_bool, default=False,
                         help="true to analyse reports generated from a commit other than the project's HEAD")
+    parser.add_argument("--context", type=_optional_path, default=None,
+                        help="a sawone-context-1 JSON document: deployment, runtime and exposure evidence")
     parser.add_argument("--code-scanning-repo", default="",
                         help="owner/name whose open Code Scanning alerts are assessed (no scanner runs)")
     parser.add_argument("--code-scanning-ref", default="",
@@ -442,10 +467,16 @@ def main(argv: list[str] | None = None) -> int:
         signal.signal(signal.SIGALRM, on_timeout)
         signal.alarm(args.timeout_seconds)
     try:
+        context_document = _read_context(args.context)
+    except (OSError, ValueError) as exc:
+        print(f"rejected: the context file is not readable JSON ({type(exc).__name__})", file=sys.stderr)
+        return 2
+    try:
         summary = run(inputs, args.project_dir, args.output_dir, exposure=args.exposure,
                       adapter_name=args.adapter, fail_on=args.fail_on, offline=args.offline,
                       rules_dir=args.rules_dir, max_report_bytes=args.max_report_bytes,
-                      max_records=args.max_records, registry=plugin_registry)
+                      max_records=args.max_records, registry=plugin_registry,
+                      context_document=context_document)
     except ModelError as exc:
         print(f"rejected: {exc}", file=sys.stderr)
         return 2

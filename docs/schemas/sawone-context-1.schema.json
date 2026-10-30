@@ -1,0 +1,96 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sawone.dev/schemas/sawone-context-1.schema.json",
+  "title": "SAWONE deployment and runtime context, version 1",
+  "description": "Optional evidence about where the application runs and what it does at runtime. Every section is optional. A field that is not given is UNKNOWN to SAWONE, never assumed safe or exposed. Keys starting with x- are extensions that SAWONE carries but does not interpret.",
+  "type": "object",
+  "required": ["schema"],
+  "properties": {
+    "schema": {"const": "sawone-context-1"},
+    "applications": {"type": "array", "items": {"$ref": "#/$defs/record"}},
+    "environments": {
+      "type": "array",
+      "items": {"allOf": [{"$ref": "#/$defs/record"}],
+                 "properties": {"kind": {"enum": ["production", "staging", "development", "unknown"]}}}
+    },
+    "endpoints": {
+      "type": "array",
+      "items": {"allOf": [{"$ref": "#/$defs/record"}],
+                 "properties": {
+                   "application": {"type": "string"},
+                   "route": {"type": "string"},
+                   "method": {"type": "string"},
+                   "exposure": {"enum": ["public", "private", "unknown"]},
+                   "handler": {"type": "object", "properties": {"file": {"type": "string"}, "symbol": {"type": "string"}}},
+                   "authentication": {"type": "object", "properties": {
+                     "required": {"enum": [true, false, "unknown"]},
+                     "mechanism": {"type": "string"}}}
+                 }}
+    },
+    "workloads": {
+      "type": "array",
+      "items": {"allOf": [{"$ref": "#/$defs/record"}],
+                 "properties": {
+                   "environment": {"type": "string"},
+                   "kind": {"enum": ["container", "vm", "function", "unknown"]},
+                   "image": {"type": "string"},
+                   "image_digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+                   "running": {"type": "boolean"},
+                   "exposed_ports": {"type": "array", "items": {"type": "integer", "minimum": 1, "maximum": 65535}}
+                 }}
+    },
+    "resources": {"type": "array", "items": {"allOf": [{"$ref": "#/$defs/record"}],
+                   "properties": {"type": {"type": "string"}, "environment": {"type": "string"},
+                                  "public": {"enum": ["yes", "no", "unknown"]}}}},
+    "identities": {
+      "type": "array",
+      "items": {"allOf": [{"$ref": "#/$defs/record"}],
+                 "properties": {
+                   "kind": {"enum": ["service_account", "user", "workload", "unknown"]},
+                   "permissions": {"oneOf": [{"type": "array", "items": {"type": "string"}}, {"const": "unknown"}]},
+                   "secret_refs": {"type": "array", "items": {"$ref": "#/$defs/location"}}
+                 }}
+    },
+    "ci_workflows": {"type": "array", "items": {"allOf": [{"$ref": "#/$defs/record"}],
+                      "properties": {"path": {"type": "string"},
+                                     "deploy_credentials": {"type": "array", "items": {"type": "string"}}}}},
+    "security_controls": {"type": "array", "items": {"allOf": [{"$ref": "#/$defs/record"}],
+                           "properties": {"kind": {"type": "string"},
+                                          "applies_to": {"type": "array", "items": {"type": "string"}},
+                                          "state": {"enum": ["enabled", "disabled", "unknown"]}}}},
+    "mitigations": {"type": "array", "items": {"allOf": [{"$ref": "#/$defs/record"}],
+                     "properties": {"finding_ids": {"type": "array", "items": {"type": "string"}},
+                                    "reason": {"type": "string"},
+                                    "verified": {"type": "boolean"}}}},
+    "runtime_observations": {
+      "type": "array",
+      "items": {"allOf": [{"$ref": "#/$defs/record"}, {"$ref": "#/$defs/location"}],
+                 "required": ["outcome"],
+                 "properties": {
+                   "time": {"type": "string", "format": "date-time"},
+                   "source": {"type": "string"},
+                   "symbol": {"type": "string"},
+                   "route": {"type": "string"},
+                   "outcome": {"enum": ["reached", "not_reached", "error"]}
+                 }}
+    },
+    "runtime_protection_events": {
+      "type": "array",
+      "items": {"allOf": [{"$ref": "#/$defs/record"}, {"$ref": "#/$defs/location"}],
+                 "required": ["action"],
+                 "properties": {
+                   "time": {"type": "string", "format": "date-time"},
+                   "action": {"enum": ["blocked", "alerted", "allowed"]},
+                   "rule": {"type": "string"}
+                 }}
+    }
+  },
+  "patternProperties": {"^x-": {}},
+  "additionalProperties": false,
+  "$defs": {
+    "record": {"type": "object", "required": ["id"], "properties": {"id": {"type": "string", "minLength": 1}}},
+    "location": {"type": "object", "required": ["file", "line"],
+                 "properties": {"file": {"type": "string", "minLength": 1},
+                                "line": {"type": "integer", "minimum": 1}}}
+  }
+}

@@ -23,7 +23,9 @@ satisfied on the traced path. No request was sent.
 
 import ast
 
-from engine import preconditions
+from engine import deployment_context, preconditions, weakness
+from engine.languages import analyzer_for
+from engine.languages.csharp import assess_call as assess_csharp_call
 from engine.universal import (
     CONFIRMED, CONFIRMED_EXPLOITABLE, MITIGATED, NOT_CONFIRMED, NOT_EXPLOITABLE, NOT_REACHABLE, UNKNOWN,
     POTENTIALLY_EXPLOITABLE, UNKNOWN_STATUS, Condition, Engine, make_assessment, resolve_project_file,
@@ -135,12 +137,20 @@ class SastEngine(Engine):
     limits = (
         "no interprocedural data flow: an argument's value is not traced into callers",
         "no sanitiser model: a call to a sanitiser is treated as non-constant",
-        "non-Python files get no source-level analysis",
+        "only Python and C# files get source-level analysis; other languages are UNKNOWN",
         "other sinks in the same file are not assessed by a single finding",
         "exposure and authentication are not assessed",
     )
 
     def assess(self, finding: dict, context: dict):
+        """Route the finding, assess its call site, add any runtime observation, then cap the verdict by the
+        routing decision. The weakness class decides the cap; the call-site check decides the rest."""
+        chosen = weakness.route(finding)
+        result = self._assess_location(finding, context)
+        result = deployment_context.apply_runtime(result, finding, context)
+        return weakness.apply_route(result, chosen, finding["exploitability_context"]["exposure"])
+
+    def _assess_location(self, finding: dict, context: dict):
         location = finding.get("location")
         if not location:
             return unknown_assessment("the finding has no source location", engine=self.name)
@@ -154,6 +164,15 @@ class SastEngine(Engine):
             "not_analysed": list(self.limits),
         }
         base_limits = list(self.limits)
+
+        analyzer = analyzer_for(location["path"])
+        if analyzer is not None and analyzer.name == "csharp":
+            try:
+                source_bytes = target.read_bytes()
+            except OSError as exc:
+                return unknown_assessment(f"the file could not be read ({type(exc).__name__})", engine=self.name)
+            return assess_csharp_call(source_bytes, location, engine=self.name,
+                                      exposure=finding["exploitability_context"]["exposure"])
 
         if target.suffix != ".py":
             # A pattern match with no analysis behind it says nothing about exploitability, so it is UNKNOWN.
