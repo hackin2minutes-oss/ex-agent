@@ -31,7 +31,8 @@ that the CVE is harmless.
 
 | Reachability | Preconditions | Verdict |
 |---|---|---|
-| Confirmed (call site and taint path) | Satisfied | `confirmed_exploitable` |
+| Confirmed (call site and taint path) | Satisfied, and exposure declared `internet` | `confirmed_exploitable` |
+| Confirmed (call site and taint path) | Satisfied, exposure `internal` or `unknown` | `potentially_exploitable` |
 | Confirmed | Unverified | `potentially_exploitable` |
 | Confirmed | Not satisfied (mitigation found) | `not_exploitable_in_scope` |
 | Potentially (call site, no proven taint) | any | `potentially_exploitable` |
@@ -43,7 +44,7 @@ indicators in the analysed code. The text-scan fallback can never produce it.
 
 ## Status and what has been verified
 
-Verified in this environment (`python3 -m unittest discover -s tests -t .`, 47 tests):
+Verified in this environment (`python3 -m unittest discover -s tests -t .`, 246 tests):
 dependency parsers, version ranges, intel clients with injected responses and
 offline/failure/cache behaviour, fix-diff symbol extraction, precondition checks,
 verdict table and gates, SARIF/call-graph/Markdown writers, PR-comment eligibility,
@@ -101,15 +102,23 @@ Options: `--fail-on confirmed_reachable|confirmed_exploitable`, `--codeql PATH`,
 ## Limits to state with every result
 
 - Scope is application code. Calls made inside the library are not analysed.
-- Preconditions are static text matches, not runtime configuration.
+- Preconditions are checked against source, not runtime configuration. A sink check
+  is satisfied only when the sink argument is request-derived. Python uses `ast` with
+  assignment tracing in the enclosing function. Go and JavaScript use file-scoped
+  lexical taint. Anything unresolved, sanitised or constant is `unverified`.
+- Exposure is declared by the operator (`exposure: internet | internal | unknown`,
+  default `unknown`). The engine does not infer it, so `confirmed_exploitable` is only
+  reported when the operator declares `internet`.
 - Access-control hints do not change the verdict.
 - Deserialization gadgets and framework-invoked code can be missed by the call graph.
 - Fix-commit symbols over-approximate. Curated rules are authoritative.
-- Only curated CVEs can reach `confirmed_exploitable`.
+- Only curated CVEs can reach `confirmed_exploitable`, and only with declared
+  `internet` exposure.
 
-## Placeholders
+## Test fixtures
 
-`rules/CVE-XXXX-XXXX.json` and the `com.example` / `com.acme` coordinates are fictional.
-Replace them with real advisories before relying on any output.
+`tests/fixtures/rules/SYNTHETIC-0001.json` is a labelled synthetic rule used only by
+the tests. `rules/` contains only real advisories, and `tests/test_rules_hygiene.py`
+fails the build if a placeholder identifier or coordinate is added there.
 
 <!-- pull request CI check -->

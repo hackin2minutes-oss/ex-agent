@@ -13,8 +13,8 @@ jobs:
     name: Unit tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-python@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: "3.13"
       - name: Install engine requirements
@@ -30,7 +30,21 @@ jobs:
       pull-requests: write   # PR comment, same-repository pull requests only
       security-events: write # SARIF upload to Code Scanning
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Build the CI rule directory (production rules plus synthetic test rule)
+        run: sh scripts/build_ci_rules.sh
+
+      - name: Verify the image runs as non-root and can write the report
+        run: |
+          docker build -t exploitability-nonroot-check .
+          uid=$(docker run --rm --entrypoint id exploitability-nonroot-check -u)
+          echo "container uid: $uid"
+          test "$uid" = "1001"
+          mkdir -p "$RUNNER_TEMP/write-check"
+          docker run --rm -v "$RUNNER_TEMP/write-check:/out" --entrypoint sh \
+            exploitability-nonroot-check -c 'echo ok > /out/probe'
+          test "$(cat "$RUNNER_TEMP/write-check/probe")" = "ok"
 
       - name: Run the action
         id: exploitability
@@ -40,7 +54,7 @@ jobs:
         with:
           project-dir: tests/fixtures/app
           deps: tests/fixtures/app/maven-tree.txt
-          rules-dir: rules
+          rules-dir: .ci-rules
           output-dir: exploitability-report
           fail-on: confirmed_reachable
           offline: "true"
@@ -50,14 +64,14 @@ jobs:
 
       - name: Upload SARIF to Code Scanning
         if: always() && hashFiles('exploitability-report/findings.sarif') != ''
-        uses: github/codeql-action/upload-sarif@v4
+        uses: github/codeql-action/upload-sarif@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
         with:
           sarif_file: exploitability-report/findings.sarif
           category: exploitability-self-test
 
       - name: Upload report
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: exploitability-report-action
           path: exploitability-report/
@@ -66,16 +80,19 @@ jobs:
     name: CodeQL call-site and taint
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - uses: actions/setup-java@v6
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
         with:
           distribution: temurin
           java-version: "17"
 
-      - uses: actions/setup-python@v7
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: "3.13"
+
+      - name: Build the CI rule directory (production rules plus synthetic test rule)
+        run: sh scripts/build_ci_rules.sh
 
       - name: Install CodeQL CLI
         run: |
@@ -100,7 +117,7 @@ jobs:
           PYTHONPATH=. python3 -P -m engine \
             --project-dir tests/fixtures/app \
             --deps tests/fixtures/app/maven-tree.txt \
-            --rules-dir rules \
+            --rules-dir .ci-rules \
             --output-dir codeql-report \
             --codeql "$PWD/codeql/codeql" \
             --build-command "sh $PWD/tests/fixtures/build.sh" \
@@ -118,7 +135,7 @@ jobs:
           PYTHONPATH=. python3 -P -m engine \
             --project-dir tests/fixtures/taint-control \
             --deps tests/fixtures/taint-control/resolved-deps.json \
-            --rules-dir rules \
+            --rules-dir .ci-rules \
             --output-dir codeql-control-report \
             --codeql "$PWD/codeql/codeql" \
             --build-command "sh $PWD/tests/fixtures/build.sh taint-control" \
@@ -134,7 +151,7 @@ jobs:
           PYTHONPATH=. python3 -P -m engine \
             --project-dir tests/fixtures/python-app \
             --deps tests/fixtures/python-app/requirements.txt \
-            --rules-dir rules \
+            --rules-dir .ci-rules \
             --output-dir codeql-python-report \
             --codeql "$PWD/codeql/codeql" \
             --fail-on confirmed_exploitable \
@@ -149,7 +166,7 @@ jobs:
           PYTHONPATH=. python3 -P -m engine \
             --project-dir tests/fixtures/python-app-safe \
             --deps tests/fixtures/python-app-safe/requirements.txt \
-            --rules-dir rules \
+            --rules-dir .ci-rules \
             --output-dir codeql-python-safe-report \
             --codeql "$PWD/codeql/codeql" \
             --fail-on confirmed_exploitable \
@@ -165,10 +182,11 @@ jobs:
           PYTHONPATH=. python3 -P -m engine \
             --project-dir tests/fixtures/js-app \
             --deps tests/fixtures/js-app/package-lock.json \
-            --rules-dir rules \
+            --rules-dir .ci-rules \
             --output-dir codeql-js-report \
             --codeql "$PWD/codeql/codeql" \
             --fail-on confirmed_exploitable \
+            --exposure internet \
             --offline true \
             --no-comment
           code=$?
@@ -184,7 +202,7 @@ jobs:
           PYTHONPATH=. python3 -P -m engine \
             --project-dir tests/fixtures/js-app-safe \
             --deps tests/fixtures/js-app-safe/package-lock.json \
-            --rules-dir rules \
+            --rules-dir .ci-rules \
             --output-dir codeql-js-safe-report \
             --codeql "$PWD/codeql/codeql" \
             --fail-on confirmed_exploitable \
@@ -200,10 +218,11 @@ jobs:
           PYTHONPATH=. python3 -P -m engine \
             --project-dir tests/fixtures/ts-app \
             --deps tests/fixtures/ts-app/package-lock.json \
-            --rules-dir rules \
+            --rules-dir .ci-rules \
             --output-dir codeql-ts-report \
             --codeql "$PWD/codeql/codeql" \
             --fail-on confirmed_exploitable \
+            --exposure internet \
             --offline true \
             --no-comment
           code=$?
@@ -220,10 +239,11 @@ jobs:
           PYTHONPATH=. python3 -P -m engine \
             --project-dir tests/fixtures/go-app \
             --deps tests/fixtures/go-app/go.sum \
-            --rules-dir rules \
+            --rules-dir .ci-rules \
             --output-dir codeql-go-report \
             --codeql "$PWD/codeql/codeql" \
             --fail-on confirmed_exploitable \
+            --exposure internet \
             --offline true \
             --no-comment
           code=$?
@@ -239,7 +259,7 @@ jobs:
           PYTHONPATH=. python3 -P -m engine \
             --project-dir tests/fixtures/go-app-safe \
             --deps tests/fixtures/go-app-safe/go.sum \
-            --rules-dir rules \
+            --rules-dir .ci-rules \
             --output-dir codeql-go-safe-report \
             --codeql "$PWD/codeql/codeql" \
             --fail-on confirmed_exploitable \
@@ -250,7 +270,7 @@ jobs:
         run: python3 -P scripts/verify_report.py codeql-go-safe-report --mode codeql --expect-call-site --expect-classification vulnerable_function_reachable --expect-cve CVE-2023-29401 --expect-gate passed
       - name: Upload report
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: exploitability-report-codeql
           path: codeql-report/

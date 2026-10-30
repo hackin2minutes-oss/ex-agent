@@ -1,42 +1,77 @@
 """Bounded call graph for Python, built from the standard library's ast module.
 
-Nodes are functions and methods (`module:qualname`). Edges are calls. Resolution is by
-name:
-- "ast-same-module": the callee name is a function defined in the same module.
-- "ast-import": the callee name was imported with `from X import name` and is defined in X.
-- unresolved: anything else (attribute calls on objects, dynamic dispatch, library code).
-Unresolved calls are recorded as uncertainty, not dropped and not assumed absent.
+Nodes are functions and methods (`module:qualname`). Edges are calls. Resolution is by name:
+- "ast-same-module": the callee is a function defined in the same module.
+- "ast-import": the callee was imported with `from X import name` and defined in X.
+- unresolved: anything else (attribute calls, dynamic dispatch, library code).
 
-Traversal from entry points to target functions is breadth-first, bounded by depth,
-node count and path count, and never revisits a node on the same path (cycles).
-Python only. Other languages have no call graph in this release.
+Limits are enforced while the graph is built, not after:
+- MAX_NODES caps function nodes. Functions beyond the cap are skipped and counted.
+- MAX_EDGES caps call edges. Edges beyond the cap are skipped and counted.
+- A file that cannot be read or parsed is recorded and marks the graph incomplete.
+
+Every edge between two retained nodes is kept, even when other nodes were skipped.
+The graph reports `complete` and the reasons it is not complete. A caller must treat an
+incomplete graph as "paths unknown", never as "no path".
+
+Traversal from entry points is breadth-first, bounded by depth, path count and an
+expansion budget, and never revisits a node on the same path.
 """
 
 import ast
 from collections import deque
 from pathlib import Path
 
+MAX_NODES = 50_000
+MAX_EDGES = 250_000
 MAX_DEPTH = 8
-MAX_NODES = 5000
 MAX_PATHS = 20
+MAX_EXPANSIONS = 200_000
 ROUTE_ATTRS = {"route", "get", "post", "put", "delete", "patch"}
 
 
 class Graph:
-    def __init__(self):
+    def __init__(self, max_edges: int = MAX_EDGES):
+        self.max_edges = max_edges
         self.nodes: dict[str, dict] = {}
         self.edges: list[dict] = []
         self.unresolved: list[dict] = []
+        self.unresolved_from: set[str] = set()
         self.parse_errors: list[str] = []
-        self.truncated = False
+        self.skipped_nodes = 0
+        self.skipped_edges = 0
+        self.incomplete_reasons: list[str] = []
+        self.spans: dict[str, list[tuple[int, int, str]]] = {}
         self._adjacency: dict[str, list[str]] = {}
 
-    def add_edge(self, source: str, target: str, line: int, resolution: str) -> None:
+    @property
+    def complete(self) -> bool:
+        return not self.incomplete_reasons
+
+    def add_edge(self, source: str, target: str, line: int, resolution: str) -> bool:
+        if len(self.edges) >= self.max_edges:
+            self.skipped_edges += 1
+            if "edge_limit" not in self.incomplete_reasons:
+                self.incomplete_reasons.append("edge_limit")
+            return False
         self.edges.append({"from": source, "to": target, "line": line, "resolution": resolution})
         self._adjacency.setdefault(source, []).append(target)
+        return True
 
     def successors(self, node: str) -> list[str]:
         return self._adjacency.get(node, [])
+
+    def summary(self) -> dict:
+        return {
+            "nodes": len(self.nodes),
+            "edges": len(self.edges),
+            "unresolved_calls": len(self.unresolved),
+            "skipped_nodes": self.skipped_nodes,
+            "skipped_edges": self.skipped_edges,
+            "parse_errors": len(self.parse_errors),
+            "complete": self.complete,
+            "incomplete_reasons": list(self.incomplete_reasons),
+        }
 
 
 def _module_name(root: Path, path: Path) -> str:
@@ -54,6 +89,14 @@ def _route_of(node) -> str | None:
     return None
 
 
+def _callee_name(call: ast.Call) -> str | None:
+    if isinstance(call.func, ast.Name):
+        return call.func.id
+    if isinstance(call.func, ast.Attribute):
+        return call.func.attr
+    return None
+
+
 def _calls_in_body(body) -> list[ast.Call]:
     """Calls made by this function body. Nested functions and classes have their own nodes."""
     calls: list[ast.Call] = []
@@ -68,28 +111,21 @@ def _calls_in_body(body) -> list[ast.Call]:
     return calls
 
 
-def _callee_name(call: ast.Call) -> str | None:
-    if isinstance(call.func, ast.Name):
-        return call.func.id
-    if isinstance(call.func, ast.Attribute):
-        return call.func.attr
-    return None
-
-
-def build(root: Path) -> Graph:
-    graph = Graph()
-    defined: dict[str, dict[str, list[str]]] = {}   # module -> simple name -> node ids
-    imports: dict[str, dict[str, str]] = {}         # module -> local name -> source module
-    calls: list[tuple[str, str, int]] = []           # (caller id, callee name, line)
-    spans: dict[str, list[tuple[int, int, str]]] = {}  # file -> (start, end, node id)
+def build(root: Path, max_nodes: int = MAX_NODES, max_edges: int = MAX_EDGES) -> Graph:
+    graph = Graph(max_edges=max_edges)
+    defined: dict[str, dict[str, list[str]]] = {}
+    imports: dict[str, dict[str, str]] = {}
+    calls: list[tuple[str, str, int]] = []
 
     for path in sorted(root.rglob("*.py")):
         module = _module_name(root, path)
         relative = path.relative_to(root).as_posix()
         try:
             tree = ast.parse(path.read_text(encoding="utf-8", errors="replace"))
-        except SyntaxError as exc:
-            graph.parse_errors.append(f"{relative}: {exc.msg} (line {exc.lineno})")
+        except (SyntaxError, ValueError, OSError) as exc:
+            graph.parse_errors.append(f"{relative}: {type(exc).__name__}")
+            if "parse_error" not in graph.incomplete_reasons:
+                graph.incomplete_reasons.append("parse_error")
             continue
         defined.setdefault(module, {})
         imports.setdefault(module, {})
@@ -105,12 +141,19 @@ def build(root: Path) -> Graph:
                 elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
                     qualname = f"{prefix}{node.name}"
                     node_id = f"{module}:{qualname}"
+                    if len(graph.nodes) >= max_nodes:
+                        graph.skipped_nodes += 1
+                        if "node_limit" not in graph.incomplete_reasons:
+                            graph.incomplete_reasons.append("node_limit")
+                        visit(node.body, f"{qualname}.<locals>.")
+                        continue
                     route = _route_of(node)
                     graph.nodes[node_id] = {"id": node_id, "file": relative, "line": node.lineno,
                                             "end_line": node.end_lineno or node.lineno,
                                             "entry": route is not None, "route": route}
                     defined[module].setdefault(node.name, []).append(node_id)
-                    spans.setdefault(relative, []).append((node.lineno, node.end_lineno or node.lineno, node_id))
+                    graph.spans.setdefault(relative, []).append(
+                        (node.lineno, node.end_lineno or node.lineno, node_id))
                     for inner in _calls_in_body(node.body):
                         name = _callee_name(inner)
                         if name:
@@ -119,41 +162,44 @@ def build(root: Path) -> Graph:
 
         visit(tree.body)
 
+    # Edges are added only between retained nodes, in a deterministic order.
     for caller, name, line in calls:
+        if caller not in graph.nodes:
+            continue
         module = caller.split(":", 1)[0]
-        if len(graph.nodes) > MAX_NODES:
-            graph.truncated = True
-            break
         if name in defined.get(module, {}):
-            for target in defined[module][name]:
-                graph.add_edge(caller, target, line, "ast-same-module")
+            targets, resolution = defined[module][name], "ast-same-module"
         elif name in imports.get(module, {}):
             source = imports[module][name]
-            targets = defined.get(source, {}).get(name, [])
-            if targets:
-                for target in targets:
-                    graph.add_edge(caller, target, line, "ast-import")
-            else:
-                graph.unresolved.append({"from": caller, "name": name, "line": line})
+            targets, resolution = defined.get(source, {}).get(name, []), "ast-import"
         else:
+            targets = []
+        if not targets:
             graph.unresolved.append({"from": caller, "name": name, "line": line})
-
-    graph.spans = spans
+            graph.unresolved_from.add(caller)
+            continue
+        for target in targets:
+            if target in graph.nodes:
+                graph.add_edge(caller, target, line, resolution)
     return graph
 
 
 def enclosing_function(graph: Graph, file: str, line: int) -> str | None:
     best = None
-    for start, end, node_id in getattr(graph, "spans", {}).get(file, []):
+    for start, end, node_id in graph.spans.get(file, []):
         if start <= line <= end and (best is None or (end - start) < (best[1] - best[0])):
             best = (start, end, node_id)
     return best[2] if best else None
 
 
-def paths_to(graph: Graph, targets: set[str], max_depth: int = MAX_DEPTH) -> list[list[str]]:
-    """Paths from each entry point to any target function, bounded and cycle-free."""
+def paths_to(graph: Graph, targets: set[str], max_depth: int = MAX_DEPTH) -> tuple[list[list[str]], bool]:
+    """Return (paths, search_complete). search_complete is False when the expansion budget ran out."""
     found: list[list[str]] = []
-    entries = [n for n, meta in graph.nodes.items() if meta["entry"]]
+    expansions = 0
+    search_complete = True
+    # A function with calls the graph cannot resolve may hide a path (dynamic dispatch, library
+    # code). Expanding such a function makes "no path" unknown rather than absent.
+    entries = sorted(n for n, meta in graph.nodes.items() if meta["entry"])
     for entry in entries:
         queue = deque([[entry]])
         while queue and len(found) < MAX_PATHS:
@@ -163,8 +209,15 @@ def paths_to(graph: Graph, targets: set[str], max_depth: int = MAX_DEPTH) -> lis
                 found.append(path)
                 continue
             if len(path) > max_depth:
+                search_complete = False
                 continue
+            if node in graph.unresolved_from:
+                search_complete = False
             for successor in graph.successors(node):
-                if successor not in path:
-                    queue.append(path + [successor])
-    return found
+                if successor in path:
+                    continue
+                expansions += 1
+                if expansions > MAX_EXPANSIONS:
+                    return found, False
+                queue.append(path + [successor])
+    return found, search_complete and len(found) < MAX_PATHS

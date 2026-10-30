@@ -13,6 +13,12 @@ RUN if [ -n "$CODEQL_VERSION" ]; then \
     fi
 ENV PATH="/opt/codeql:${PATH}"
 
+# Run as a fixed non-root UID. 1001 matches the owner of the GitHub-hosted runner
+# workspace, so the engine can write the report into it. The numeric USER lets
+# Kubernetes-style runAsNonRoot checks verify it without resolving the name.
+RUN groupadd --system --gid 1001 engine \
+    && useradd --system --uid 1001 --gid 1001 --no-create-home --shell /usr/sbin/nologin engine
+
 WORKDIR /opt/exploitability
 COPY requirements.txt ./requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
@@ -23,4 +29,5 @@ COPY rules ./rules
 # The engine loads only from /opt/exploitability. -P stops Python from putting the
 # scanned workspace on sys.path, so a file planted in the repository cannot shadow it.
 ENV PYTHONPATH=/opt/exploitability
+USER 1001:1001
 ENTRYPOINT ["python3", "-P", "-m", "engine"]

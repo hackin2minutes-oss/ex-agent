@@ -1,14 +1,19 @@
 {
-  "cve": "CVE-XXXX-XXXX",
-  "note": "Placeholder identifier from the design. Replace with a real advisory before use.",
+  "cve": "SYNTHETIC-0001",
   "ecosystem": "Maven",
-  "summary": "Placeholder: unsafe parsing in com.example.Parser.parse()",
+  "summary": "SYNTHETIC TEST FIXTURE. Not a real vulnerability. Used only by the test suite and the CI fixture checks. Never copied into rules/ or the container image.",
   "severity": "CRITICAL",
   "cvss": 9.8,
   "library": "com.example:vulnerable-library",
-  "affected": {"introduced": "2.0.0", "fixed": "2.4.1"},
+  "affected": {
+    "introduced": "2.0.0",
+    "fixed": "2.4.1"
+  },
   "symbols": [
-    {"name": "com.example.Parser.parse", "source": "curated"}
+    {
+      "name": "com.example.Parser.parse",
+      "source": "curated"
+    }
   ],
   "preconditions": [
     {
@@ -25,5 +30,6 @@
       "glob": "**/*.java",
       "regex": "Parser\\.setSafeMode\\(\\s*true\\s*\\)"
     }
-  ]
+  ],
+  "source_note": "Describes the Java fixture in tests/fixtures/app. No advisory exists."
 }
