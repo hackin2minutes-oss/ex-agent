@@ -26,11 +26,12 @@ from pathlib import Path
 CONFIRMED_EXPLOITABLE = "CONFIRMED_EXPLOITABLE"
 POTENTIALLY_EXPLOITABLE = "POTENTIALLY_EXPLOITABLE"
 NOT_EXPLOITABLE = "NOT_EXPLOITABLE"
+NOT_REACHABLE = "NOT_REACHABLE"
 NOT_AFFECTED = "NOT_AFFECTED"
 MITIGATED = "MITIGATED"
 UNKNOWN = "UNKNOWN"
 ANALYSIS_INCOMPLETE = "ANALYSIS_INCOMPLETE"
-VERDICTS = (CONFIRMED_EXPLOITABLE, POTENTIALLY_EXPLOITABLE, NOT_EXPLOITABLE, NOT_AFFECTED,
+VERDICTS = (CONFIRMED_EXPLOITABLE, POTENTIALLY_EXPLOITABLE, NOT_EXPLOITABLE, NOT_REACHABLE, NOT_AFFECTED,
             MITIGATED, UNKNOWN, ANALYSIS_INCOMPLETE)
 
 CATEGORIES = ("SAST", "SCA", "DAST", "IAST", "RASP", "SECRET", "IAC", "CONTAINER", "K8S",
@@ -196,6 +197,9 @@ def make_assessment(verdict: str, *, reason: str, engine: str, conditions: dict 
     if verdict == NOT_EXPLOITABLE:
         if not any(backed(n, NOT_CONFIRMED) for n in CONDITIONS):
             raise ModelError("NOT_EXPLOITABLE needs a NOT_CONFIRMED condition with evidence")
+    elif verdict == NOT_REACHABLE:
+        if not backed("reachable", NOT_CONFIRMED):
+            raise ModelError("NOT_REACHABLE needs reachable NOT_CONFIRMED with evidence")
     elif verdict == NOT_AFFECTED:
         if not backed("vulnerability_exists", NOT_CONFIRMED):
             raise ModelError("NOT_AFFECTED needs vulnerability_exists NOT_CONFIRMED with evidence")
@@ -237,7 +241,7 @@ LEGACY_TO_VERDICT = {
     "reachable_but_relevant_preconditions_not_met": POTENTIALLY_EXPLOITABLE,
     "vulnerable_function_reachable": POTENTIALLY_EXPLOITABLE,
     "reachable_preconditions_unknown": POTENTIALLY_EXPLOITABLE,
-    "not_reachable_within_analysed_scope": NOT_EXPLOITABLE,
+    "not_reachable_within_analysed_scope": NOT_REACHABLE,
     "not_affected": NOT_AFFECTED,
     "vulnerable_component_only": UNKNOWN,
     "unknown": UNKNOWN,
