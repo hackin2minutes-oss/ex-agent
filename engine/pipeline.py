@@ -154,7 +154,7 @@ def _taint_locations(flows: list[dict]) -> list[dict]:
 
 def derive_stages(*, cand: dict, symbol_names: list[str], mode: str, codeql_requested: bool,
                   hits: list[dict], taint: str, analysis_complete: bool, pre_status: str,
-                  mitigated: bool, kev_status: bool | None) -> dict[str, str]:
+                  mitigated: bool, kev_status: bool | None, config_status: str = "unverified") -> dict[str, str]:
     """Map what the engine observed to one status per stage. See docs/EXPLOITABILITY_MODEL.md."""
     if mode == "codeql":
         reachability = xp.CONFIRMED if hits else (xp.NOT_CONFIRMED if analysis_complete else xp.UNKNOWN)
@@ -183,7 +183,8 @@ def derive_stages(*, cand: dict, symbol_names: list[str], mode: str, codeql_requ
         "F_entry_point": xp.CONFIRMED if taint == verdict.TAINT_CONFIRMED else xp.UNKNOWN,
         "G_data_flow": data_flow,
         "H_preconditions": precondition_map[pre_status],
-        "I_configuration": xp.UNKNOWN,
+        "I_configuration": {"satisfied": xp.CONFIRMED, "not_satisfied": xp.NOT_CONFIRMED}.get(
+            config_status, xp.UNKNOWN),
         "J_security_controls": xp.UNKNOWN,
         "K_mitigation": xp.CONFIRMED if mitigated else xp.UNKNOWN,
         "L_threat_intelligence": threat,
@@ -236,6 +237,9 @@ def analyse_candidate(cand: dict, project_dir: Path, ctx: dict) -> dict:
     auth_hints = context.access_control_hints(project_dir)
 
     nvd = cand.get("nvd")
+    config_status, config_details = preconditions.evaluate(
+        cand["curated"]["configuration"], project_dir) if cand["curated"] and cand["curated"].get("configuration") \
+        else ("unverified", [])
     mitigated = any(c.get("kind") == "mitigated_by" and c.get("result") == "not_satisfied"
                     for c in pre_details)
     kev_status = None
@@ -244,7 +248,7 @@ def analyse_candidate(cand: dict, project_dir: Path, ctx: dict) -> dict:
     stage_values = derive_stages(
         cand=cand, symbol_names=symbol_names, mode=mode, codeql_requested=ctx["codeql_bin"] is not None,
         hits=hits, taint=taint, analysis_complete=analysis_complete, pre_status=pre_status,
-        mitigated=mitigated, kev_status=kev_status)
+        mitigated=mitigated, kev_status=kev_status, config_status=config_status)
     classification, classification_reason = xp.classify(
         stage_values, access_controls_present=bool(auth_hints))
     final_verdict = xp.legacy_verdict(classification)
@@ -281,6 +285,7 @@ def analyse_candidate(cand: dict, project_dir: Path, ctx: dict) -> dict:
          "locations": auth_hints, "note": "Informational. Does not change the verdict."},
         {"type": "taint_path", "result": taint, "locations": _taint_locations(taint_flows)},
         {"type": "preconditions", "result": pre_status, "checks": pre_details},
+        {"type": "configuration", "result": config_status, "checks": config_details},
     ]
     if ctx["reflection"]:
         evidence.append({"type": "reflection", "result": "incomplete",
