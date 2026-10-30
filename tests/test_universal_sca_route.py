@@ -62,8 +62,11 @@ class ScaRouteTest(unittest.TestCase):
     def test_grype_report_runs_through_the_sca_route(self):
         summary = self.run_case([GRYPE])
         self.assertEqual(summary["inputs"], [{"input": GRYPE.name, "route": "sca", "records": 3}])
-        self.assertEqual({f["vulnerability"]["rule_id"] for f in self.findings()},
-                         {"GHSA-8q59-q68h-6hv4", "GHSA-rprw-h62v-c2w7", "GHSA-68rp-wp8r-4726"})
+        findings = self.findings()
+        # The rule is the CVE. The GHSA identifiers Grype reported are kept among the identifiers.
+        self.assertEqual({f["vulnerability"]["rule_id"] for f in findings},
+                         {"CVE-2017-18342", "CVE-2020-14343", "CVE-2026-27205"})
+        self.assertTrue(all(any(i.startswith("GHSA-") for i in f["vulnerability"]["ids"]) for f in findings))
 
     def test_three_scanners_on_one_vulnerability_keep_all_three_sources(self):
         self.run_case([GRYPE, TRIVY, OSV])
