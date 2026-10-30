@@ -19,10 +19,12 @@ engine there. Neither changes `run`.
 
 import argparse
 import json
+import os
 import signal
 import sys
 from pathlib import Path
 
+from engine import code_scanning
 from engine import findings as sca_findings
 from engine import pipeline, report, sca_universal, universal, universal_report
 from engine import guidance
@@ -359,13 +361,28 @@ def main(argv: list[str] | None = None) -> int:
                         help="Curated SCA rules directory")
     parser.add_argument("--offline", type=_bool, default=False,
                         help="true to skip advisory and intelligence lookups for the SCA path")
+    parser.add_argument("--code-scanning-repo", default="",
+                        help="owner/name whose open Code Scanning alerts are assessed (no scanner runs)")
+    parser.add_argument("--code-scanning-ref", default="",
+                        help="Git ref of the alerts, e.g. refs/heads/main. Needs --code-scanning-repo.")
     args = parser.parse_args(argv)
     if args.rules_dir is None:
         args.rules_dir = DEFAULT_RULES
     listed = [Path(item.strip()) for item in args.inputs.replace(",", "\n").splitlines() if item.strip()]
     inputs = list(args.input) + listed
+    if args.code_scanning_repo:
+        if not args.code_scanning_ref:
+            parser.error("--code-scanning-ref is needed with --code-scanning-repo")
+        try:
+            alerts = code_scanning.fetch_alerts(args.code_scanning_repo, args.code_scanning_ref,
+                                                os.environ.get("GITHUB_TOKEN", ""))
+        except ModelError as exc:
+            print(f"rejected: {exc}", file=sys.stderr)
+            return 2
+        inputs += code_scanning.write_alert_reports(alerts, args.output_dir / "code-scanning")
+        print(f"code scanning: {len(alerts)} open alert(s) on {args.code_scanning_ref}")
     if not inputs:
-        parser.error("give at least one --input or --inputs")
+        parser.error("give at least one --input, --inputs or --code-scanning-repo")
 
     def on_timeout(signum, frame):
         raise TimeoutError(f"the run exceeded {args.timeout_seconds} seconds")

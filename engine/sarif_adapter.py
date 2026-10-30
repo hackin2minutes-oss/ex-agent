@@ -11,6 +11,8 @@ from engine.universal import Adapter, ModelError, make_finding
 
 SARIF_VERSION = "2.1.0"
 SARIF_FORMAT = "sarif-2.1.0"
+# The category of a result follows its tool. Tools not listed here are SAST, because SARIF is mostly code scanning.
+CATEGORY_BY_TOOL = {"gitleaks": "SECRET", "checkov": "IAC", "hadolint": "CONTAINER", "zizmor": "CICD"}
 
 
 def _location(result: dict) -> dict | None:
@@ -34,7 +36,7 @@ def _location(result: dict) -> dict | None:
 class SarifAdapter(Adapter):
     name = "sarif"
     formats = (SARIF_FORMAT,)
-    categories = ("SAST",)
+    categories = ("SAST", "SECRET", "IAC", "CONTAINER", "CICD")
 
     def detect(self, document) -> bool:
         return (isinstance(document, dict) and document.get("version") == SARIF_VERSION
@@ -48,6 +50,7 @@ class SarifAdapter(Adapter):
                 raise ModelError(f"sarif run {run_index} is not an object")
             driver = ((run.get("tool") or {}).get("driver") or {})
             scanner = driver.get("name") if isinstance(driver.get("name"), str) else "sarif"
+            category = CATEGORY_BY_TOOL.get(scanner.lower(), "SAST")
             for index, result in enumerate(run.get("results") or []):
                 if not isinstance(result, dict):
                     raise ModelError(f"sarif result {run_index}.{index} is not an object")
@@ -59,7 +62,7 @@ class SarifAdapter(Adapter):
                 if location is None:
                     without_location += 1
                 findings.append(make_finding(
-                    category="SAST",
+                    category=category,
                     rule_id=rule_id,
                     title=rule_id.rsplit(".", 1)[-1],
                     asset={"type": "source_location", "name": location["path"] if location else rule_id},
