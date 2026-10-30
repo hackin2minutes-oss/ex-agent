@@ -91,6 +91,40 @@ def _read(path: Path) -> tuple[str, object]:
     return text, json.loads(text)
 
 
+def _image_inventory_finding(item: dict, document: dict, exposure: str) -> dict:
+    """A vulnerability in a package installed in a container image. Its verdict is UNKNOWN: the scan shows the
+    package is present, not that the application uses the vulnerable part of it."""
+    ecosystem = "operating-system package" if item.get("ecosystem") in (None, "unknown") else "installed package"
+    package = f"{item.get('name', '')}@{item.get('version', '')}"
+    finding = universal.make_finding(
+        category="CONTAINER",
+        rule_id=item.get("primary_id") or "unknown",
+        title=item.get("summary") or item.get("primary_id") or "unknown",
+        asset={"type": "container_image", "name": document.get("ArtifactName") or "image"},
+        location=None,
+        severity_reported=item.get("severity"),
+        provenance={"scanner": (item.get("sources") or [{}])[0].get("scanner", "unknown"),
+                    "version": None, "format": "scanner-json", "target": package,
+                    "reported_by": [src.get("scanner") for src in item.get("sources") or []]},
+        original=item,
+        ids=list(item.get("ids") or []),
+        exposure=exposure,
+        identity=(package,),
+    )
+    finding["assessment"] = universal.make_assessment(
+        universal.UNKNOWN,
+        reason=f"{ecosystem} {package} is present in the image; whether the application uses the "
+               "vulnerable part is not analysed",
+        engine="container-image-inventory",
+        coverage={"analysed": [f"{package} present in the image"],
+                  "not_analysed": ["application use of the package", "runtime exposure of the container"]},
+        limitations=["application use of the package is not analysed",
+                     "runtime exposure and isolation of the container are not analysed"],
+        exposure=exposure,
+    ).to_dict()
+    return finding
+
+
 def _sca_incomplete(item: dict, exposure: str, reason: str) -> dict:
     """An imported SCA finding whose analysis failed. It is reported, not dropped."""
     package = f"{item.get('name', '')}@{item.get('version', '')}"
@@ -216,6 +250,16 @@ def run(inputs, project_dir: Path, output_dir: Path, *, exposure: str = "unknown
                 _, items = detected
                 if len(items) > max_records:
                     raise ModelError(f"{len(items)} records exceed the {max_records}-record budget")
+                if document.get("ArtifactType") == "container_image":
+                    # An image scan lists what is installed in the image. It does not show what the application
+                    # uses, so it is not run through the application SCA analysis.
+                    image_findings = [_image_inventory_finding(item, document, exposure) for item in items]
+                    findings.extend(image_findings)
+                    inputs_summary.append({"input": path.name, "route": "container-image",
+                                           "records": len(items)})
+                    diagnostics.append(f"container-image: {len(items)} installed-package finding(s) "
+                                       "recorded as present in the image, not analysed for use by the application")
+                    continue
                 sca_inputs.append((path.name, items))
                 inputs_summary.append({"input": path.name, "route": "sca", "records": len(items)})
                 continue
