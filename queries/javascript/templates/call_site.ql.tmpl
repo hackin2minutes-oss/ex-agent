@@ -1,0 +1,13 @@
+/**
+ * @name Call to {{PACKAGE}}.{{METHOD}}
+ * @description Finds application call sites of a vulnerable library function.
+ * @id sawone/javascript-call-{{ID}}
+ * @kind problem
+ * @problem.severity warning
+ */
+
+import javascript
+
+from DataFlow::CallNode call
+where call = API::moduleImport("{{PACKAGE}}").getMember("{{METHOD}}").getACall()
+select call.asExpr(), "Calls {{PACKAGE}}.{{METHOD}}()"

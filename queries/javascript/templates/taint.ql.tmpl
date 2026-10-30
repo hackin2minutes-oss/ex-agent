@@ -1,0 +1,30 @@
+/**
+ * @name Remote input reaches {{PACKAGE}}.{{METHOD}}
+ * @description Data flow from HTTP request input (Express request properties, or remote
+ *              sources known to CodeQL) to the first argument of a vulnerable library function.
+ * @id sawone/javascript-taint-{{ID}}
+ * @kind path-problem
+ * @problem.severity error
+ */
+
+import javascript
+
+module VulnConfig implements DataFlow::ConfigSig {
+  predicate isSource(DataFlow::Node source) { source instanceof RemoteFlowSource }
+
+  predicate isSink(DataFlow::Node sink) {
+    exists(DataFlow::CallNode call |
+      call = API::moduleImport("{{PACKAGE}}").getMember("{{METHOD}}").getACall() and
+      sink = call.getArgument(0)
+    )
+  }
+}
+
+module VulnFlow = TaintTracking::Global<VulnConfig>;
+
+import VulnFlow::PathGraph
+
+from VulnFlow::PathNode source, VulnFlow::PathNode sink
+where VulnFlow::flowPath(source, sink)
+select sink.getNode(), source, sink, "Remote input flows into {{PACKAGE}}.{{METHOD}}()",
+  source.getNode(), "remote input"

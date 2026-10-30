@@ -1,0 +1,4 @@
+name: sawone/exploitability-javascript
+version: 0.1.0
+dependencies:
+  codeql/javascript-all: "*"

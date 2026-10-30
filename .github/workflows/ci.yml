@@ -158,6 +158,41 @@ jobs:
 
       - name: Verify Python safe app
         run: python3 -P scripts/verify_report.py codeql-python-safe-report --mode codeql --expect-classification not_reachable_within_analysed_scope --expect-cve CVE-2017-18342
+
+      - name: Run engine on the JavaScript vulnerable app (gate must fail)
+        run: |
+          set +e
+          PYTHONPATH=. python3 -P -m engine \
+            --project-dir tests/fixtures/js-app \
+            --deps tests/fixtures/js-app/package-lock.json \
+            --rules-dir rules \
+            --output-dir codeql-js-report \
+            --codeql "$PWD/codeql/codeql" \
+            --fail-on confirmed_exploitable \
+            --offline true \
+            --no-comment
+          code=$?
+          set -e
+          echo "engine exit code: $code"
+          test "$code" -eq 1
+
+      - name: Verify JavaScript vulnerable app
+        run: python3 -P scripts/verify_report.py codeql-js-report --mode codeql --expect-call-site --expect-taint confirmed --expect-classification confirmed_exploitable --expect-cve CVE-2019-10744
+
+      - name: Run engine on the JavaScript safe app (gate must pass)
+        run: |
+          PYTHONPATH=. python3 -P -m engine \
+            --project-dir tests/fixtures/js-app-safe \
+            --deps tests/fixtures/js-app-safe/package-lock.json \
+            --rules-dir rules \
+            --output-dir codeql-js-safe-report \
+            --codeql "$PWD/codeql/codeql" \
+            --fail-on confirmed_exploitable \
+            --offline true \
+            --no-comment
+
+      - name: Verify JavaScript safe app
+        run: python3 -P scripts/verify_report.py codeql-js-safe-report --mode codeql --expect-classification not_reachable_within_analysed_scope --expect-cve CVE-2019-10744
       - name: Upload report
         if: always()
         uses: actions/upload-artifact@v7

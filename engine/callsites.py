@@ -20,6 +20,8 @@ _REFLECTION = re.compile(
 def scan_call_sites(source_root: Path, symbol: str, language: str = "java") -> list[dict]:
     if language == "python":
         return _scan_python_call_sites(source_root, symbol)
+    if language == "javascript":
+        return _scan_javascript_call_sites(source_root, symbol)
     qualified_class, method = symbol.rsplit(".", 1)
     simple_class = qualified_class.rsplit(".", 1)[-1]
     import_line = f"import {qualified_class};"
@@ -55,9 +57,36 @@ def _scan_python_call_sites(source_root: Path, symbol: str) -> list[dict]:
     return hits
 
 
+_JS_EXTENSIONS = ("*.js", "*.mjs", "*.cjs", "*.ts")
+
+
+def _scan_javascript_call_sites(source_root: Path, symbol: str) -> list[dict]:
+    module, function = symbol.rsplit(".", 1)
+    mod = re.escape(module)
+    binding = re.compile(
+        rf"(?:const|let|var)\s+(\w+)\s*=\s*require\(\s*['\"]{mod}['\"]\s*\)"
+        rf"|import\s+(\w+)\s+from\s+['\"]{mod}['\"]"
+    )
+    hits = []
+    for pattern in _JS_EXTENSIONS:
+        for path in sorted(source_root.rglob(pattern)):
+            text = path.read_text(encoding="utf-8", errors="replace")
+            aliases = {a for m in binding.finditer(text) for a in m.groups() if a}
+            for alias in aliases:
+                call = re.compile(rf"\b{re.escape(alias)}\s*\.\s*{re.escape(function)}\s*\(")
+                for lineno, line in enumerate(text.splitlines(), 1):
+                    if call.search(line):
+                        hits.append({"file": str(path.relative_to(source_root)), "line": lineno,
+                                     "text": line.strip()})
+    return hits
+
+
 def reflection_indicators(source_root: Path) -> list[dict]:
     hits = []
-    for path in sorted([*source_root.rglob("*.java"), *source_root.rglob("*.py")]):
+    files = [*source_root.rglob("*.java"), *source_root.rglob("*.py")]
+    for pattern in _JS_EXTENSIONS:
+        files += source_root.rglob(pattern)
+    for path in sorted(files):
         text = path.read_text(encoding="utf-8")
         for lineno, line in enumerate(text.splitlines(), 1):
             if _REFLECTION.search(line):

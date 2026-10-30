@@ -4,8 +4,8 @@ Queries are templates under queries/<language>/templates/. For each vulnerable s
 the runner renders a call-site query and a taint query into a query pack, then runs
 them against a CodeQL database of the project.
 
-Supported languages: java (method symbols `package.Class.method`) and python
-(module symbols `module.function`).
+Supported languages: java (method symbols `package.Class.method`), and python and
+javascript (module symbols `module.function`).
 
 Unverified in this environment: the CodeQL CLI is not installed here. The queries
 run in CI only (see .github/workflows/ci.yml).
@@ -21,6 +21,7 @@ QUERIES_ROOT = Path(__file__).resolve().parent.parent / "queries"
 LANGUAGES = {
     "java": {"codeql": "java", "build": True},
     "python": {"codeql": "python", "build": False},
+    "javascript": {"codeql": "javascript", "build": False},
 }
 
 
@@ -32,7 +33,7 @@ def find_codeql(explicit: str | None = None) -> str | None:
 
 def split_symbol(symbol: str, language: str = "java") -> tuple[str, str, str]:
     """Return (package, class, method). For python the class is empty and the package is the module."""
-    if language == "python":
+    if language in ("python", "javascript"):
         module, function = symbol.rsplit(".", 1)
         return module, "", function
     qualified_class, method = symbol.rsplit(".", 1)

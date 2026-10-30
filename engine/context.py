@@ -72,3 +72,25 @@ def find_python_entry_points(source_root: Path) -> list[dict]:
                     "route": match.group("route") or "/",
                 })
     return entry_points
+
+
+_JS_ROUTE = re.compile(r"\b(?P<owner>app|router)\.(?P<kind>get|post|put|delete|patch|all)\(\s*['\"](?P<route>[^'\"]*)['\"]")
+
+
+def find_javascript_entry_points(source_root: Path) -> list[dict]:
+    """Express route handlers (`app.post('/path', ...)`, `router.get(...)`)."""
+    entry_points = []
+    for pattern in ("*.js", "*.mjs", "*.cjs", "*.ts"):
+        for path in sorted(source_root.rglob(pattern)):
+            text = path.read_text(encoding="utf-8", errors="replace")
+            if "express" not in text:
+                continue
+            for lineno, line in enumerate(text.splitlines(), 1):
+                for match in _JS_ROUTE.finditer(line):
+                    entry_points.append({
+                        "file": str(path.relative_to(source_root)),
+                        "line": lineno,
+                        "kind": match.group("kind").upper(),
+                        "route": match.group("route") or "/",
+                    })
+    return entry_points
