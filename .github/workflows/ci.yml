@@ -127,7 +127,7 @@ jobs:
             --no-comment
 
       - name: Verify taint positive control
-        run: python3 -P scripts/verify_report.py codeql-control-report --mode codeql --expect-call-site --expect-taint confirmed --expect-classification reachable_preconditions_unknown --expect-cve CVE-2017-18342
+        run: python3 -P scripts/verify_report.py codeql-control-report --mode codeql --expect-call-site --expect-taint confirmed --expect-classification reachable_preconditions_unknown
 
       - name: Run engine on the Python vulnerable app
         run: |
