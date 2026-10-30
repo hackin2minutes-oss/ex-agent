@@ -1,17 +1,18 @@
 """Language analyzers, and the capability report for every language the project names.
 
-Priority: Python (the existing call-site engine in engine/sast.py), C# (this package), JavaScript and TypeScript,
-Java, Go. A language with no analyzer is NOT_IMPLEMENTED here, and its findings are UNKNOWN.
+Priority: Python (the existing call-site engine in engine/sast.py), C#, JavaScript and TypeScript, Java, Go. A
+language with no analyzer is NOT_IMPLEMENTED here, and its findings are UNKNOWN.
 """
 
 from engine.languages.base import LanguageAnalyzer
 from engine.languages.csharp import CSharpAnalyzer
+from engine.languages.javascript import JavaScriptAnalyzer
 
-ANALYZERS: tuple[LanguageAnalyzer, ...] = (CSharpAnalyzer(),)
+ANALYZERS: tuple[LanguageAnalyzer, ...] = (CSharpAnalyzer(), JavaScriptAnalyzer())
 
 # Languages the project names, in priority order, that have no analyzer yet. Their query templates exist under
 # queries/, but no call-site analysis is wired to them, so they are reported NOT_IMPLEMENTED rather than estimated.
-PLANNED = (("javascript", (".js", ".mjs", ".cjs", ".ts", ".tsx")), ("java", (".java",)), ("go", (".go",)))
+PLANNED = (("java", (".java",)), ("go", (".go",)))
 
 
 def analyzer_for(path: str) -> LanguageAnalyzer | None:

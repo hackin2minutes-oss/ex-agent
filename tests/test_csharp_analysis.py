@@ -106,7 +106,7 @@ class LanguageRegistryTest(unittest.TestCase):
         report = {record["language"]: record for record in capability_report()}
         self.assertEqual([r["language"] for r in capability_report()],
                          ["python", "csharp", "javascript", "java", "go"])
-        self.assertEqual(report["javascript"]["status"], "NOT_IMPLEMENTED")
+        self.assertEqual(report["javascript"]["status"], "IMPLEMENTED_NOT_EXTERNALLY_VERIFIED")
         self.assertEqual(report["java"]["status"], "NOT_IMPLEMENTED")
         self.assertEqual(report["go"]["status"], "NOT_IMPLEMENTED")
         self.assertEqual(report["csharp"]["test_corpus"], ["tests/fixtures/csharp-app"])

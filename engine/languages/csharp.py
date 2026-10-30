@@ -15,16 +15,10 @@ cannot be CONFIRMED_EXPLOITABLE; dependency injection, minimal-API lambdas and m
 """
 
 import re
-from dataclasses import dataclass, field
-
 import tree_sitter_c_sharp
 from tree_sitter import Language, Parser
 
-from engine.languages.base import LanguageAnalyzer
-from engine.universal import (
-    CONFIRMED, NOT_CONFIRMED, NOT_EXPLOITABLE, POTENTIALLY_EXPLOITABLE, UNKNOWN, UNKNOWN_STATUS, Condition,
-    make_assessment,
-)
+from engine.languages.base import CallSite, LanguageAnalyzer, assess_site
 
 LITERALS = frozenset({"string_literal", "verbatim_string_literal", "raw_string_literal", "integer_literal",
                       "real_literal", "boolean_literal", "null_literal", "character_literal"})
@@ -45,17 +39,6 @@ LIMITS = (
 )
 
 _PARSER = Parser(Language(tree_sitter_c_sharp.language()))
-
-
-@dataclass
-class CallSite:
-    found: bool
-    reason: str
-    match: str = ""
-    method: str | None = None
-    attributes: list[str] = field(default_factory=list)
-    entry_point: bool = False
-    sources: list[dict] = field(default_factory=list)
 
 
 def _walk(node):
@@ -202,7 +185,8 @@ def analyse(source: bytes, line: int, column: int | None = None) -> CallSite:
     entry = sorted(ENTRY_ATTRIBUTES.intersection(attributes))
     return CallSite(True, f"call expression at line {line} ({match} match)", match=match,
                     method=_text(method.child_by_field_name("name")) if method is not None else None,
-                    attributes=attributes, entry_point=bool(entry), sources=sources)
+                    attributes=attributes, entry_point=bool(entry),
+                    entry=f"[{entry[0]}]: ASP.NET routes requests to it" if entry else "", sources=sources)
 
 
 class CSharpAnalyzer(LanguageAnalyzer):
@@ -228,55 +212,6 @@ class CSharpAnalyzer(LanguageAnalyzer):
 
 
 def assess_call(source: bytes, location: dict, *, engine: str, exposure: str):
-    """The universal assessment for a flagged C# call. Attacker input reaching the call makes it at most
-    POTENTIALLY_EXPLOITABLE here, because preconditions are not modelled. A call whose arguments are all literals
-    is NOT_EXPLOITABLE, because no attacker-controlled data reaches it."""
-    site = analyse(source, location["start_line"], location.get("start_col"))
-    where = f"{location['path']}:{location['start_line']}"
-    if not site.found:
-        return make_assessment(UNKNOWN, reason=f"{where}: {site.reason}", engine=engine,
-                               limitations=[site.reason, *LIMITS], exposure=exposure)
-
-    arguments = [s for s in site.sources if s["role"] == "argument"]
-    attacker = next((s for s in site.sources if s["kind"] == "attacker"), None)
-    constant = attacker is None and bool(arguments) and all(s["kind"] == "constant" for s in arguments)
-    entry = sorted(ENTRY_ATTRIBUTES.intersection(site.attributes))
-
-    evidence = [
-        {"condition": None, "kind": "location", "detail": f"{where} call expression located ({site.match} match)"},
-        {"condition": None, "kind": "enclosing_method", "detail": site.method or "none",
-         "attributes": site.attributes},
-    ]
-    conditions = {}
-    if site.entry_point:
-        conditions["reachable"] = Condition(CONFIRMED, [f"{site.method} carries [{entry[0]}]"])
-        evidence.append({"condition": "reachable", "kind": "entry_point",
-                         "detail": f"{site.method} carries [{entry[0]}], which ASP.NET routes requests to"})
-    if attacker is not None:
-        conditions["attacker_influence"] = Condition(CONFIRMED, [attacker["via"]])
-        evidence.append({"condition": "attacker_influence", "kind": "taint",
-                         "detail": f"{attacker['role']} {attacker['index']} `{attacker['text']}` carries "
-                                   f"{attacker['via']}"})
-    elif constant:
-        conditions["attacker_influence"] = Condition(NOT_CONFIRMED, ["every argument is a literal"])
-        evidence.append({"condition": "attacker_influence", "kind": "constant",
-                         "detail": "every argument is a literal constant, and the receiver is not attacker input"})
-
-    if constant:
-        return make_assessment(NOT_EXPLOITABLE, reason="every argument is a literal, so no attacker-controlled data "
-                               "reaches the call", engine=engine, conditions=conditions, evidence=evidence,
-                               confidence="HIGH", confidence_reason="a literal-only argument list is decided by the "
-                               "syntax tree", coverage={"analysed": [where], "not_analysed": list(LIMITS)},
-                               limitations=list(LIMITS), exposure=exposure)
-    if attacker is not None:
-        return make_assessment(POTENTIALLY_EXPLOITABLE, reason=f"attacker input reaches the call: {attacker['via']}",
-                               engine=engine, conditions=conditions, evidence=evidence, confidence="MEDIUM",
-                               confidence_reason="traced within one method; preconditions and callers are not",
-                               coverage={"analysed": [where], "not_analysed": list(LIMITS)},
-                               limitations=list(LIMITS), exposure=exposure)
-    return make_assessment(UNKNOWN, reason="no argument is a literal, and none is traced to a request value in this "
-                           "method", engine=engine, conditions={"attacker_influence": Condition(UNKNOWN_STATUS)},
-                           evidence=evidence, confidence="LOW",
-                           confidence_reason="the argument source is outside the analysed method",
-                           coverage={"analysed": [where], "not_analysed": list(LIMITS)},
-                           limitations=list(LIMITS), exposure=exposure)
+    """The universal assessment for a flagged C# call. See engine/languages/base.py for the verdict rules."""
+    return assess_site(analyse(source, location["start_line"], location.get("start_col")), location,
+                       engine=engine, exposure=exposure, limits=LIMITS)

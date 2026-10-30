@@ -12,9 +12,9 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from engine import universal, universal_run
+from engine import sast, universal, universal_run
 from engine.semgrep_adapter import SemgrepAdapter
-from engine.universal import ModelError, NOT_EXPLOITABLE, POTENTIALLY_EXPLOITABLE, UNKNOWN
+from engine.universal import ModelError, NOT_EXPLOITABLE, POTENTIALLY_EXPLOITABLE, UNKNOWN, make_finding
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures" / "sast"
 REAL = FIXTURES / "semgrep-1.183.0.real.json"
@@ -67,11 +67,27 @@ class RealSemgrepFixtureTest(unittest.TestCase):
         self.assertEqual(assessment["conditions"]["attacker_influence"]["status"], "NOT_CONFIRMED")
         self.assertIn("literal", assessment["reason"])
 
-    def test_non_python_match_is_unknown_with_low_confidence(self):
+    def test_javascript_match_is_analysed_and_stays_unknown_without_a_request_in_scope(self):
+        # handler.js is a helper, not a route, so its req parameter has no known caller here: the analysis runs, and
+        # the argument is not traced to a request, so the verdict is UNKNOWN with LOW confidence.
         assessment = self.by_location[("handler.js", 2)]
         self.assertEqual(assessment["verdict"], UNKNOWN)
         self.assertEqual(assessment["confidence"]["level"], "LOW")
-        self.assertIn("no source-level analysis", assessment["reason"])
+        self.assertIn("traced to a request value", assessment["reason"])
+
+    def test_a_language_with_no_analyzer_is_unknown_with_low_confidence(self):
+        finding = make_finding(category="SAST", rule_id="java.rule", title="rule",
+                               asset={"type": "source_location", "name": "App.java"},
+                               location={"path": "App.java", "start_line": 2, "end_line": 2, "start_col": None,
+                                         "end_col": None},
+                               severity_reported="error", provenance={"scanner": "test"}, original={})
+        finding["exploitability_context"]["exposure"] = "unknown"
+        with tempfile.TemporaryDirectory() as tmp:
+            (Path(tmp) / "App.java").write_text("class App {}\n", encoding="utf-8")
+            assessment = sast.SastEngine().assess(finding, {"project_dir": Path(tmp)})
+        self.assertEqual(assessment.verdict, UNKNOWN)
+        self.assertEqual(assessment.confidence, "LOW")
+        self.assertIn("no source-level analysis", assessment.reason)
 
     def test_no_sast_result_is_confirmed_exploitable_even_with_internet_exposure(self):
         for finding in self.assessed:
