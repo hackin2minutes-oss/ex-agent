@@ -12,8 +12,23 @@ import semmle.code.java.dataflow.DataFlow
 import semmle.code.java.dataflow.FlowSources
 import semmle.code.java.dataflow.TaintTracking
 
+// Spring request inputs. CodeQL's RemoteFlowSource did not recognise these in the
+// CI database (diagnostic: 0 results), so they are listed explicitly.
+predicate isSpringRequestInput(Parameter p) {
+  exists(Annotation a | a = p.getAnAnnotation() |
+    a.getType().hasName("RequestParam") or
+    a.getType().hasName("RequestBody") or
+    a.getType().hasName("PathVariable") or
+    a.getType().hasName("RequestHeader") or
+    a.getType().hasName("RequestPart") or
+    a.getType().hasName("CookieValue")
+  )
+}
+
 module VulnConfig implements DataFlow::ConfigSig {
-  predicate isSource(DataFlow::Node source) { source instanceof RemoteFlowSource }
+  predicate isSource(DataFlow::Node source) {
+    source instanceof RemoteFlowSource or isSpringRequestInput(source.asParameter())
+  }
 
   predicate isSink(DataFlow::Node sink) {
     exists(MethodCall call |
