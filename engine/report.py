@@ -102,6 +102,9 @@ def call_graph(findings: list[dict]) -> dict:
     return {"nodes": list(nodes.values()), "edges": edges}
 
 
+CALL_GRAPH_INCOMPLETE = "Python call graph is incomplete"
+
+
 def summary_markdown(summary: dict, findings: list[dict]) -> str:
     lines = [MARKER, "## Exploitability analysis", ""]
     if not findings:
@@ -121,6 +124,11 @@ def summary_markdown(summary: dict, findings: list[dict]) -> str:
                 f"`{f['library']}:{f['dependency']['version']}` | `{f['classification']}` | "
                 f"{severity} | `{policy_action}` | {where} |"
             )
+        incomplete = sorted({note for f in findings for note in f.get("scope", {}).get("limitations", [])
+                             if note.startswith(CALL_GRAPH_INCOMPLETE)})
+        if incomplete:
+            lines += ["", "Incomplete analysis (absence of a call path is unknown, not \"not reachable\"):"]
+            lines += [f"- {note}" for note in incomplete]
     gate_name = "policy" if summary.get("policy") else summary["fail_on"]
     lines += [
         "",

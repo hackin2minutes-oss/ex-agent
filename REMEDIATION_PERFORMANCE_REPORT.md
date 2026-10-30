@@ -73,3 +73,20 @@ separately recorded in this sprint, and the bound is a hard cap of 200,000 expan
 - Precondition check time. The Python `ast` pass parses each matching file once per
   check. Each Go and JavaScript check reads each matching file once. Neither was timed.
 - CodeQL query time. Not run.
+
+## Second pass (final code, same machine)
+
+Measured again after the verification pass. The graph code had not changed since the first
+measurement. Only the reporting path changed. Three runs each, median time, peak memory
+from `tracemalloc`:
+
+| Files | Median time | Peak memory | Nodes | Edges | Complete | Reasons | Skipped nodes |
+|---|---|---|---|---|---|---|---|
+| 100 | 0.24 s | 2.9 MB | 3,001 | 3,001 | yes | none | 0 |
+| 1,000 | 2.71 s | 28.2 MB | 30,001 | 30,001 | yes | none | 0 |
+| 2,000 | 5.69 s | 47.7 MB | 50,000 | 49,999 | no | node_limit | 10,001 |
+| 4,000 | 9.06 s | 48.0 MB | 50,000 | 49,999 | no | node_limit | 70,001 |
+
+The scale test module (13 tests, 100 to 4,000 files) ran in 5.4 s of wall time.
+The 2,000-file row is new in this report. Its build is bounded by the same 50,000-node cap
+as the 4,000-file row, which is why the two peak-memory figures are close.

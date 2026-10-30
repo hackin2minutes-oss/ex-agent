@@ -15,7 +15,7 @@ this change. Any claim that depends on them is marked as pending.
 
 | ID | Finding | Status | Evidence type |
 |---|---|---|---|
-| F-01 | Call-graph truncation destroys edges | FIXED (Python call graph) | Local tests and measurement; CI pending |
+| F-01 | Call-graph truncation destroys edges | PARTIALLY_FIXED (Python call graph; CI pending) | Local verification (23 tests, randomized oracle, measurements); CI not yet green on this head |
 | F-02 | CONFIRMED_EXPLOITABLE without exposure assessment | PARTIALLY_FIXED | Local unit tests; CodeQL CI expectations updated, not run |
 | F-03 | Constant filename satisfies an attacker-input precondition | PARTIALLY_FIXED | Local scenario tests (20) |
 | F-04 | NOT_AFFECTED never emitted | FIXED | Local pipeline and unit tests |
@@ -25,30 +25,99 @@ this change. Any claim that depends on them is marked as pending.
 
 ## F-01 Call-graph truncation destroys edges
 
+**Status: PARTIALLY_FIXED.** The defect is fixed for the Python call graph, and the local
+evidence below is reproducible. It is not FIXED yet because the GitHub-hosted CI run for
+this head has not passed (see "CI status" below). The graph also remains evidence only and
+does not feed the verdict (see "Remaining limitations").
+
 **Root cause.** In the previous `engine/callgraph.py`, the node cap was checked only inside
 the edge-resolution loop (`if len(graph.nodes) > MAX_NODES: graph.truncated = True; break`).
 Nodes were collected with no cap. Once the graph held more than 5,000 nodes, that loop
 stopped before adding any edge, so the graph had nodes and zero edges. The `truncated`
 flag was set but was never written to the evidence. A missing path therefore looked like
-"no path". The defect is visible in the old source and in the measurements in
+"no path". The old source was read directly to confirm this; see also the measurements in
 `REMEDIATION_PERFORMANCE_REPORT.md`.
 
-**Change.** `build()` now enforces the node cap during collection and adds an edge only
-between retained nodes. Calls whose target is not retained or not resolvable are recorded
-as unresolved. `Graph` tracks `complete` and `incomplete_reasons` (`node_limit`,
-`edge_limit`, `unresolved_dynamic_dispatch`, `parse_error`, `depth_limit`,
-`expansion_limit`, `path_limit`). `paths_to()` returns `(paths, search_complete)`. The
-pipeline records the search status in the call-path evidence, under `graph`. A truncated
-graph never reports "absent".
+**Change.**
+- `build()` enforces the node cap during collection. Functions beyond the cap are skipped
+  and counted, and the graph is marked `node_limit`.
+- Edges are added only between retained nodes. Calls whose targets are not retained become
+  unresolved, which marks their caller's search incomplete.
+- `add_edge()` enforces the edge cap and marks `edge_limit`.
+- Parse failures (`SyntaxError`, `ValueError` for NUL bytes, `OSError`) are recorded and
+  mark the graph `parse_error`.
+- `paths_to()` returns `(paths, search_complete)`. The search is incomplete when the depth,
+  expansion or path budget runs out, or when it reaches a node with unresolved calls.
+- The pipeline (`_python_call_paths`) returns `not_found` only when the graph is complete
+  and the search finished. Otherwise it returns `incomplete`.
+- The second pass added a Markdown line for each finding whose graph is incomplete
+  (`_graph_limitations`, and an "Incomplete analysis" section in `report.md`). Before this,
+  truncation reached `evidence.json` only.
 
-**Tests.** `tests/test_callgraph_scale.py` (13 tests): generated projects of 100, 1,000,
-2,000 and 4,000 files; node and edge limit enforcement; edges surviving truncation;
-disconnected components; cycles; unresolved dynamic dispatch making the search incomplete;
-parse failure; determinism; and a truncated graph not being reported as "no path".
+### Verification (second pass, requested after the first report)
 
-**Residual.** The call graph is still Python-only (the pipeline uses CodeQL for other
-languages). Beyond 50,000 nodes the graph is incomplete by design, and the report says so.
-Large-repository handling is a separate finding (F-09) and is not addressed here.
+Each item in the requested verification is listed with the test or measurement that
+backs it. Test file: `tests/test_callgraph_verification.py` (23 tests). Full run:
+269 tests, all passing (`PYTHONPATH=. python3 -P -m unittest discover -s tests -t .`).
+
+| # | Check | Evidence | Result |
+|---|---|---|---|
+| 1 | Inspect final construction code | Read `engine/callgraph.py` in full (223 lines) | Reviewed; the cap check is inside `visit()`, before node insertion |
+| 2 | Node and edge limits enforced during construction | `test_node_limit_is_never_exceeded`, `test_edge_limit_is_never_exceeded`, `test_node_limit_is_enforced_during_construction`, `test_edge_limit_is_enforced_and_reported` | Pass. Node count equals the cap exactly; edge count equals the cap exactly |
+| 3 | Retained edges reference retained nodes | `assertEdgesReferenceRetainedNodes` in four tests, including truncated-node, truncated-edge and default-scale (2,000 files) graphs; adjacency checked against the edge list | Pass |
+| 4 | Truncation metadata propagated | `test_summary_carries_truncation_metadata`, `test_pipeline_call_paths_evidence_carries_graph_summary`; Markdown: `test_markdown_report_shows_the_truncation` | Pass. Reaches `evidence.json` and `report.md`. Not added to `summary.json` or SARIF (see limitations) |
+| 5 | Incomplete graph cannot give NOT_REACHABLE_WITHIN_ANALYSED_SCOPE | `test_truncated_graph_without_a_path_is_incomplete_not_not_found`, `test_hit_outside_any_retained_node_is_incomplete`, `test_parser_failure_makes_absence_incomplete`. Also a code read: `derive_stages` takes reachability only from CodeQL hits and `analysis_complete`, never from the Python graph | Pass. Stronger than required: the Python graph is not an input to that status at all |
+| 6 | Unresolved calls mark affected searches incomplete | `test_unresolved_call_on_the_path_makes_absence_unknown`, `test_builtin_calls_make_absence_unknown_by_design`; unrelated unresolved calls do not affect a found path (`test_unresolved_call_elsewhere_does_not_affect_a_path_that_exists`) | Pass. Conservative: calls to builtins such as `print()` mark the caller incomplete |
+| 7 | Complete search with no path returns a definitive result | `test_complete_search_with_no_path_is_definitive`, `test_complete_cyclic_graph_without_path_is_definitive`, `test_disconnected_components_report_no_path_definitively` (result `not_found`) | Pass |
+| 8 | Disconnected, cyclic, oversized, unresolved, parser-failure graphs | Disconnected and cyclic: above. Oversized: `test_oversized_project_path_within_retained_nodes_is_still_found`, scale tests. Unresolved: 6. Parser failure: `test_parser_failure_does_not_remove_a_valid_path_already_found` (a found path stays `confirmed`), `test_parser_failure_makes_absence_incomplete` | Pass |
+| 8a | Independent oracle | `RandomizedOracleTest`: 60 random complete projects. Reachability computed by a plain BFS over the graph's own edges, compared with `paths_to`. Every returned path is checked edge by edge and for repeated nodes | Pass (60/60 trials) |
+| 9 | Scale tests at 100, 1,000, 2,000 and 4,000 files | `tests/test_callgraph_scale.py`, 13 tests | Pass, 5.4 s wall time for the module |
+| 10 | Runtime and memory | `REMEDIATION_PERFORMANCE_REPORT.md`, second-pass table | Measured |
+| 11 | All existing regression tests | Full suite | 269 tests, all passing |
+| 12 | GitHub Actions CI jobs | See "CI status" | Not yet green on this head |
+
+**Note on the independent oracle.** The oracle checks path search against the graph's own
+edges. It does not check that the edges match the source code. Construction correctness
+against source is covered by the fixture tests (`test_callgraph_and_config.py`) and by the
+scale tests' known shape (each function calls the next, so the edge count is predictable).
+There is no independent AST oracle for arbitrary code.
+
+### CI status
+
+Head `7e13c45` on PR #2. Infrastructure and application failures are reported separately:
+
+- **Unit tests** job: passed on this head (two runs).
+- **Action (Docker, offline)** job: its new steps pass (the non-root check, the action run,
+  and the report verification). It fails at two upload steps, with two causes. `Upload
+  report` fails with `Artifact storage quota has been hit`. That is **infrastructure**, a
+  repository limit. `Upload SARIF to Code Scanning` fails with no error text, and the same
+  run logs `Resource not accessible by integration`. That is probably **infrastructure**
+  (token permissions), but it is not proven. Neither failure is an application test
+  failure. The same steps passed on the last green base run.
+- **CodeQL call-site and taint** job: still running at the time of writing. The CodeQL CLI
+  was not available locally, so these jobs are the only check of the CodeQL path.
+- The re-run of the failed job was refused while the workflow was still in progress. The
+  re-run is pending.
+
+F-01 cannot move to FIXED until the Unit tests job passes on the head that includes this
+verification, and until the Action job passes or its failure is confirmed as
+infrastructure with a re-run.
+
+### Remaining limitations
+
+- The Python call graph is evidence only. The reachability stage (`derive_stages`) comes
+  from CodeQL hits and CodeQL completeness. So an incomplete graph cannot create a
+  `NOT_REACHABLE` verdict, but a complete Python graph also cannot change a verdict. This
+  is a deliberate consequence of the current design, not a bug. Changing it would make the
+  Python call graph an input to the verdict, which is a design decision.
+- `summary.json` and SARIF do not carry the truncation. The Markdown report and
+  `evidence.json` do.
+- Calls to builtins mark the caller's search as incomplete. This is conservative. It makes
+  "no path" rarer in practice.
+- `paths_to()` reports its own search as complete even when the graph was truncated. The
+  pipeline combines both flags. A caller that uses `paths_to` alone can be misled.
+- Beyond 50,000 nodes the graph is incomplete by design.
+- The call graph is Python-only.
 
 ## F-02 CONFIRMED_EXPLOITABLE without exposure assessment
 

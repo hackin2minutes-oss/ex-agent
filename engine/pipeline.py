@@ -238,6 +238,14 @@ def _python_call_paths(hits: list[dict], project_dir: Path, ctx: dict) -> tuple[
     return "not_found", [], summary
 
 
+def _graph_limitations(call_graph: dict) -> list[str]:
+    """A truncated call graph must be visible in the report, not only in evidence.json."""
+    if not call_graph or call_graph.get("complete", True):
+        return []
+    reasons = ", ".join(call_graph.get("incomplete_reasons") or ["unknown"])
+    return [f"{report.CALL_GRAPH_INCOMPLETE} ({reasons}); the absence of a call path is unknown"]
+
+
 def analyse_candidate(cand: dict, project_dir: Path, ctx: dict) -> dict:
     dep = cand["dependency"]
     symbol_names, symbol_source = candidate_symbols(cand, ctx["intel"], ctx["fix_diffs_dir"])
@@ -355,6 +363,7 @@ def analyse_candidate(cand: dict, project_dir: Path, ctx: dict) -> dict:
             "CodeQL CLI not available or failed; reachability is partial",
         ]
     limitations += notes
+    limitations += _graph_limitations(call_graph)
     if cand.get("conflict"):
         limitations.append("GHSA reports this version as affected but its range does not match; "
                            "version applicability is treated as UNKNOWN")
