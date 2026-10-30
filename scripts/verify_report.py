@@ -58,7 +58,10 @@ def main(argv: list[str]) -> int:
     if len(sarif["runs"][0]["results"]) != len(findings):
         errors.append("SARIF result count does not match findings")
 
-    print(json.dumps(summary, indent=2))
+    for note in summary.get("notes", []):
+        print(f"::notice title=Engine note::{note}")
+    for source, status in summary.get("intel", {}).items():
+        print(f"::notice title=Intel {source}::{status}")
     if errors:
         for error in errors:
             print(f"::error title=Report verification::{error}")
