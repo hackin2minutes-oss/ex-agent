@@ -1,11 +1,14 @@
 import io
 import json
+import tempfile
+import unittest
 import urllib.error
+from contextlib import redirect_stderr
 from pathlib import Path
-
-import pytest
+from unittest import mock
 
 from engine import code_scanning, universal_run
+from engine.sarif_adapter import SarifAdapter
 from engine.universal import ModelError
 
 
@@ -53,127 +56,129 @@ def alert(number, tool="gitleaks", rule="generic-api-key", path="api/config.py",
     }
 
 
-def test_fetch_follows_every_page():
-    pages = [[alert(1)], [alert(2)], [alert(3)]]
-    seen = []
-    alerts = code_scanning.fetch_alerts("owner/repo", "refs/heads/main", "token",
-                                        opener=pages_opener(pages, seen))
-    assert [a["number"] for a in alerts] == [1, 2, 3]
-    assert len(seen) == 3
-    assert seen[0].get_header("Authorization") == "Bearer token"
-    assert "ref=refs%2Fheads%2Fmain" in seen[0].full_url
-    assert "state=open" in seen[0].full_url
+class CodeScanningFetchTest(unittest.TestCase):
+    def test_fetch_follows_every_page(self):
+        pages = [[alert(1)], [alert(2)], [alert(3)]]
+        seen = []
+        alerts = code_scanning.fetch_alerts("owner/repo", "refs/heads/main", "token",
+                                            opener=pages_opener(pages, seen))
+        self.assertEqual([a["number"] for a in alerts], [1, 2, 3])
+        self.assertEqual(len(seen), 3)
+        self.assertEqual(seen[0].get_header("Authorization"), "Bearer token")
+        self.assertIn("ref=refs%2Fheads%2Fmain", seen[0].full_url)
+        self.assertIn("state=open", seen[0].full_url)
+
+    def test_fetch_fails_closed_on_forbidden(self):
+        def forbidden(request):
+            raise urllib.error.HTTPError(request.full_url, 403, "Forbidden", {}, io.BytesIO(b""))
+        with self.assertRaisesRegex(ModelError, "HTTP 403"):
+            code_scanning.fetch_alerts("owner/repo", "refs/heads/main", "token", opener=forbidden)
+
+    def test_fetch_needs_a_token(self):
+        with self.assertRaisesRegex(ModelError, "security-events: read"):
+            code_scanning.fetch_alerts("owner/repo", "refs/heads/main", "", opener=pages_opener([[]]))
+
+    def test_fetch_rejects_a_repo_without_owner(self):
+        with self.assertRaisesRegex(ModelError, "owner/name"):
+            code_scanning.fetch_alerts("repo", "refs/heads/main", "token", opener=pages_opener([[]]))
 
 
-def test_fetch_fails_closed_on_forbidden():
-    def forbidden(request):
-        raise urllib.error.HTTPError(request.full_url, 403, "Forbidden", {}, io.BytesIO(b""))
-    with pytest.raises(ModelError, match="HTTP 403"):
-        code_scanning.fetch_alerts("owner/repo", "refs/heads/main", "token", opener=forbidden)
+class CodeScanningConversionTest(unittest.TestCase):
+    def test_one_sarif_document_per_tool(self):
+        documents = code_scanning.alerts_to_sarif([
+            alert(1, tool="gitleaks"),
+            alert(2, tool="zizmor", rule="artipacked", path=".github/workflows/ci.yml", severity="medium"),
+            alert(3, tool="gitleaks", line=9),
+        ])
+        self.assertEqual(set(documents), {"gitleaks", "zizmor"})
+        gitleaks = documents["gitleaks"]["runs"][0]
+        self.assertEqual(gitleaks["tool"]["driver"], {"name": "gitleaks", "version": "8.28.0"})
+        self.assertEqual(len(gitleaks["results"]), 2)
+        result = gitleaks["results"][0]
+        self.assertEqual(result["ruleId"], "generic-api-key")
+        self.assertEqual(result["level"], "error")
+        region = result["locations"][0]["physicalLocation"]["region"]
+        self.assertEqual(region, {"startLine": 3, "endLine": 3, "startColumn": 5})
+        self.assertEqual(documents["zizmor"]["runs"][0]["results"][0]["level"], "warning")
+
+    def test_alert_without_location_stays_locationless(self):
+        no_location = alert(4)
+        no_location["most_recent_instance"] = {"message": {"text": "flagged"}}
+        result = code_scanning.alerts_to_sarif([no_location])["gitleaks"]["runs"][0]["results"][0]
+        self.assertNotIn("locations", result)
+        self.assertEqual(result["message"]["text"], "flagged")
+
+    def test_alert_without_rule_id_is_refused(self):
+        broken = alert(5)
+        broken["rule"] = {"description": "no id"}
+        with self.assertRaisesRegex(ModelError, "no rule id"):
+            code_scanning.alerts_to_sarif([broken])
+
+    def test_no_alerts_writes_one_empty_document(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            paths = code_scanning.write_alert_reports([], Path(tmp) / "code-scanning")
+            self.assertEqual([p.name for p in paths], ["code-scanning.sarif"])
+            document = json.loads(paths[0].read_text(encoding="utf-8"))
+            self.assertEqual(document["runs"][0]["results"], [])
+
+    def test_write_one_file_per_tool(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            paths = code_scanning.write_alert_reports(
+                [alert(1), alert(2, tool="CodeQL", rule="py/sql")], Path(tmp))
+            self.assertEqual(sorted(p.name for p in paths), ["CodeQL.sarif", "gitleaks.sarif"])
+
+    def test_sarif_adapter_routes_by_tool(self):
+        adapter = SarifAdapter()
+        documents = code_scanning.alerts_to_sarif([
+            alert(1, tool="gitleaks"),
+            alert(2, tool="checkov", rule="CKV_DOCKER_2", path="Dockerfile", severity="low"),
+            alert(3, tool="zizmor", rule="artipacked", path=".github/workflows/ci.yml", severity="medium"),
+            alert(4, tool="CodeQL", rule="py/sql-injection", path="api/app.py", severity="high"),
+        ])
+        categories = {}
+        for name, document in documents.items():
+            findings, _ = adapter.parse(document, {"target": "x"})
+            categories[name] = {f["category"] for f in findings}
+        self.assertEqual(categories, {"gitleaks": {"SECRET"}, "checkov": {"IAC"},
+                                      "zizmor": {"CICD"}, "CodeQL": {"SAST"}})
 
 
-def test_fetch_needs_a_token():
-    with pytest.raises(ModelError, match="security-events: read"):
-        code_scanning.fetch_alerts("owner/repo", "refs/heads/main", "", opener=pages_opener([[]]))
+class CodeScanningRunnerTest(unittest.TestCase):
+    def test_runner_refuses_missing_ref(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            stderr = io.StringIO()
+            with redirect_stderr(stderr), self.assertRaises(SystemExit):
+                universal_run.main(["--code-scanning-repo", "owner/repo", "--project-dir", tmp,
+                                    "--output-dir", str(Path(tmp) / "out")])
+            self.assertIn("--code-scanning-ref", stderr.getvalue())
 
+    def test_runner_exits_two_when_alerts_cannot_be_read(self):
+        def refused(repo, ref, token, **kwargs):
+            raise ModelError("could not read code scanning alerts for owner/repo on refs/heads/main: HTTP 403")
+        with tempfile.TemporaryDirectory() as tmp, \
+                mock.patch.object(code_scanning, "fetch_alerts", refused):
+            stderr = io.StringIO()
+            with redirect_stderr(stderr):
+                exit_code = universal_run.main([
+                    "--code-scanning-repo", "owner/repo", "--code-scanning-ref", "refs/heads/main",
+                    "--project-dir", tmp, "--output-dir", str(Path(tmp) / "out"), "--offline", "true"])
+            self.assertEqual(exit_code, 2)
+            self.assertIn("HTTP 403", stderr.getvalue())
 
-def test_fetch_rejects_a_repo_without_owner():
-    with pytest.raises(ModelError, match="owner/name"):
-        code_scanning.fetch_alerts("repo", "refs/heads/main", "token", opener=pages_opener([[]]))
-
-
-def test_one_sarif_document_per_tool():
-    documents = code_scanning.alerts_to_sarif([
-        alert(1, tool="gitleaks"),
-        alert(2, tool="zizmor", rule="artipacked", path=".github/workflows/ci.yml", severity="medium"),
-        alert(3, tool="gitleaks", line=9),
-    ])
-    assert set(documents) == {"gitleaks", "zizmor"}
-    gitleaks = documents["gitleaks"]["runs"][0]
-    assert gitleaks["tool"]["driver"] == {"name": "gitleaks", "version": "8.28.0"}
-    assert len(gitleaks["results"]) == 2
-    result = gitleaks["results"][0]
-    assert result["ruleId"] == "generic-api-key"
-    assert result["level"] == "error"
-    region = result["locations"][0]["physicalLocation"]["region"]
-    assert region == {"startLine": 3, "endLine": 3, "startColumn": 5}
-    assert documents["zizmor"]["runs"][0]["results"][0]["level"] == "warning"
-
-
-def test_alert_without_location_stays_locationless():
-    no_location = alert(4)
-    no_location["most_recent_instance"] = {"message": {"text": "flagged"}}
-    result = code_scanning.alerts_to_sarif([no_location])["gitleaks"]["runs"][0]["results"][0]
-    assert "locations" not in result
-    assert result["message"]["text"] == "flagged"
-
-
-def test_alert_without_rule_id_is_refused():
-    broken = alert(5)
-    broken["rule"] = {"description": "no id"}
-    with pytest.raises(ModelError, match="no rule id"):
-        code_scanning.alerts_to_sarif([broken])
-
-
-def test_no_alerts_writes_one_empty_document(tmp_path):
-    paths = code_scanning.write_alert_reports([], tmp_path / "code-scanning")
-    assert [p.name for p in paths] == ["code-scanning.sarif"]
-    document = json.loads(paths[0].read_text(encoding="utf-8"))
-    assert document["runs"][0]["results"] == []
-
-
-def test_write_one_file_per_tool(tmp_path):
-    paths = code_scanning.write_alert_reports([alert(1), alert(2, tool="CodeQL", rule="py/sql")], tmp_path)
-    assert sorted(p.name for p in paths) == ["CodeQL.sarif", "gitleaks.sarif"]
-
-
-def test_sarif_adapter_routes_by_tool(tmp_path):
-    from engine.sarif_adapter import SarifAdapter
-    adapter = SarifAdapter()
-    documents = code_scanning.alerts_to_sarif([
-        alert(1, tool="gitleaks"),
-        alert(2, tool="checkov", rule="CKV_DOCKER_2", path="Dockerfile", severity="low"),
-        alert(3, tool="zizmor", rule="artipacked", path=".github/workflows/ci.yml", severity="medium"),
-        alert(4, tool="CodeQL", rule="py/sql-injection", path="api/app.py", severity="high"),
-    ])
-    categories = {}
-    for name, document in documents.items():
-        findings, _ = adapter.parse(document, {"target": "x"})
-        categories[name] = {f["category"] for f in findings}
-    assert categories == {"gitleaks": {"SECRET"}, "checkov": {"IAC"}, "zizmor": {"CICD"}, "CodeQL": {"SAST"}}
-
-
-def test_runner_refuses_missing_ref(tmp_path, capsys):
-    with pytest.raises(SystemExit):
-        universal_run.main(["--code-scanning-repo", "owner/repo", "--project-dir", str(tmp_path),
-                            "--output-dir", str(tmp_path / "out")])
-    assert "--code-scanning-ref" in capsys.readouterr().err
-
-
-def test_runner_exits_two_when_alerts_cannot_be_read(tmp_path, monkeypatch, capsys):
-    def refused(repo, ref, token, **kwargs):
-        raise ModelError("could not read code scanning alerts for owner/repo on refs/heads/main: HTTP 403")
-    monkeypatch.setattr(code_scanning, "fetch_alerts", refused)
-    exit_code = universal_run.main(["--code-scanning-repo", "owner/repo", "--code-scanning-ref", "refs/heads/main",
-                                    "--project-dir", str(tmp_path), "--output-dir", str(tmp_path / "out"),
-                                    "--offline", "true"])
-    assert exit_code == 2
-    assert "HTTP 403" in capsys.readouterr().err
-
-
-def test_runner_assesses_alerts_end_to_end(tmp_path, monkeypatch):
-    project = tmp_path / "project"
-    (project / "api").mkdir(parents=True)
-    (project / "api" / "config.py").write_text("API_KEY = 'x'\n", encoding="utf-8")
-    monkeypatch.setattr(code_scanning, "fetch_alerts",
-                        lambda repo, ref, token, **kwargs: [alert(1), alert(2, tool="zizmor", rule="artipacked",
-                                                                            path=".github/workflows/ci.yml",
-                                                                            severity="medium")])
-    output = tmp_path / "out"
-    exit_code = universal_run.main(["--code-scanning-repo", "owner/repo", "--code-scanning-ref", "refs/heads/main",
-                                    "--project-dir", str(project), "--output-dir", str(output), "--offline", "true"])
-    assert exit_code == 0
-    assert (output / "code-scanning" / "gitleaks.sarif").exists()
-    assert (output / "code-scanning" / "zizmor.sarif").exists()
-    findings = json.loads((output / "universal-findings.json").read_text(encoding="utf-8"))["findings"]
-    assert sorted(f["category"] for f in findings) == ["CICD", "SECRET"]
+    def test_runner_assesses_alerts_end_to_end(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            project = Path(tmp) / "project"
+            (project / "api").mkdir(parents=True)
+            (project / "api" / "config.py").write_text("API_KEY = 'x'\n", encoding="utf-8")
+            flagged = [alert(1), alert(2, tool="zizmor", rule="artipacked",
+                                       path=".github/workflows/ci.yml", severity="medium")]
+            output = Path(tmp) / "out"
+            with mock.patch.object(code_scanning, "fetch_alerts", lambda repo, ref, token, **kw: flagged):
+                exit_code = universal_run.main([
+                    "--code-scanning-repo", "owner/repo", "--code-scanning-ref", "refs/heads/main",
+                    "--project-dir", str(project), "--output-dir", str(output), "--offline", "true"])
+            self.assertEqual(exit_code, 0)
+            self.assertTrue((output / "code-scanning" / "gitleaks.sarif").exists())
+            self.assertTrue((output / "code-scanning" / "zizmor.sarif").exists())
+            findings = json.loads((output / "universal-findings.json").read_text(encoding="utf-8"))["findings"]
+            self.assertEqual(sorted(f["category"] for f in findings), ["CICD", "SECRET"])
