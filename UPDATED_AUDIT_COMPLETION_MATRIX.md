@@ -21,7 +21,7 @@ pending" means the evidence needs a GitHub-hosted run that has not happened yet.
 
 | Row in original matrix | Original | Updated | Reason |
 |---|---|---|---|
-| Least-privilege permissions (`ci.yml`, `publish-image.yml`) | PARTIAL: "Action image runs as root (F-07)" | PARTIAL: non-root user set; runtime check pending CI | F-07 |
+| Least-privilege permissions (`ci.yml`, `publish-image.yml`) | PARTIAL: "Action image runs as root (F-07)" | PARTIAL: non-root user set; runtime check passed in merged CI (`61524d1`) | F-07 |
 | Third-party actions pinned to SHA | MISSING | PARTIAL: pinned; wrapper reference remains a tag | F-08 |
 | Curated symbols with provenance (`rules/*.json`) | PARTIAL: "Four real rules and one placeholder (F-06)" | PARTIAL: four real rules; placeholder removed | F-06 |
 | Stage H preconditions | BROKEN: "Constant-argument case marked satisfied (F-03)" | PARTIAL: argument-aware for Python, Go, JavaScript; regex for configuration | F-03 |
@@ -30,7 +30,7 @@ pending" means the evidence needs a GitHub-hosted run that has not happened yet.
 | Graph truncation reported | BROKEN: "edges dropped (F-01)" | WORKS for Python: edges kept, truncation reported | F-01 |
 | Large repository handling | BROKEN: "See F-01 and F-09" | PARTIAL: F-01 part fixed; F-09 unchanged | F-01 |
 | Incomplete analysis reported | PARTIAL: "truncation not reported (F-01)" | WORKS for call-graph truncation; other limits as before | F-01 |
-| Container user | BROKEN: "Root (F-07)" | PARTIAL: UID 1001, CI check pending | F-07 |
+| Container user | BROKEN: "Root (F-07)" | PARTIAL: UID 1001; CI check passed on `61524d1`; local image run confirmed UID 1001 | F-07 |
 | Action pinning | MISSING: "Tags (F-08)" | PARTIAL: SHA pins, wrapper reference open | F-08 |
 
 ## Acceptance criteria from the brief
@@ -43,9 +43,9 @@ pending" means the evidence needs a GitHub-hosted run that has not happened yet.
 | CONFIRMED_EXPLOITABLE requires sufficient evidence | Partly met: requires taint, preconditions, no mitigation, no access-control code, and declared internet exposure. Authentication effectiveness is not assessed | `test_exploitability` |
 | NOT_AFFECTED works | Met locally | `test_not_affected`, pipeline tests |
 | No fictional production rules | Met | `test_rules_hygiene` |
-| Container runs non-root | Configured; CI pending | Dockerfile, CI step |
+| Container runs non-root | Verified: CI on `61524d1` and a local image run (UID 1001, Python 3.13.18, write probe) | Dockerfile, CI step |
 | Actions SHA-pinned | Met for first-party and third-party references in this repository; wrapper reference open | `grep uses:` review |
-| Original and new tests pass | Met locally: 246 tests OK. CI pending | `REMEDIATION_TEST_RESULTS.md` |
+| Original and new tests pass | Met: 281 tests (PR 1 branch) and 273 (PR 2 branch) passed locally; merged `main` CI green | `REMEDIATION_TEST_RESULTS.md` |
 
 ## Not changed in this sprint
 
