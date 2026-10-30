@@ -57,8 +57,10 @@ class ParserTests(unittest.TestCase):
         self.assertEqual(item["fixed_version"], "5.1")
         self.assertEqual(item["severity"], "CRITICAL")
         self.assertEqual(item["cvss"], 9.8)  # the highest reported V3 score
-        self.assertEqual(item["sources"], [{"scanner": "trivy", "format": "trivy-json",
-                                            "target": "requirements.txt"}])
+        (src,) = item["sources"]
+        self.assertEqual((src["scanner"], src["format"], src["target"]),
+                         ("trivy", "trivy-json", "requirements.txt"))
+        self.assertEqual(src["fixed_version"], "5.1")  # each source keeps its own values
 
     def test_grype_fields_and_aliases_are_normalised(self):
         (item,) = findings.parse_grype_json(GRYPE)

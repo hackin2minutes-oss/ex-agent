@@ -1,0 +1,23 @@
+{
+  "SchemaVersion": 2,
+  "ArtifactName": "python-app",
+  "Results": [
+    {
+      "Target": "requirements.txt",
+      "Class": "lang-pkgs",
+      "Type": "pip",
+      "Vulnerabilities": [
+        {
+          "VulnerabilityID": "CVE-2017-18342",
+          "PkgName": "PyYAML",
+          "InstalledVersion": "5.0.0",
+          "FixedVersion": "5.1",
+          "Severity": "CRITICAL",
+          "Title": "PyYAML arbitrary code execution",
+          "PrimaryURL": "https://avd.aquasec.com/nvd/cve-2017-18342",
+          "CVSS": {"nvd": {"V3Score": 9.8}}
+        }
+      ]
+    }
+  ]
+}
