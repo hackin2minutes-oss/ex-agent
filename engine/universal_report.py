@@ -122,12 +122,38 @@ def to_markdown(summary: dict, assessed: list[dict]) -> str:
         lines += ["### Limitations", ""]
         lines += [f"- {text}" for text in summary["limitations"]]
         lines.append("")
+    lines += _alert_details(assessed)
     lines += [
         "Verdicts are per finding and per analysed call site. `UNKNOWN` means the engine could "
         "not decide. It is not a safe result.",
         "",
     ]
     return "\n".join(lines)
+
+
+def _alert_details(assessed: list[dict]) -> list[str]:
+    """One block per alert: the verdict, whether it can be exploited and how, and what to do. Remediation is shown for
+    every alert. An UNKNOWN alert's remediation is labelled as generic, so it is never read as a verdict."""
+    if not assessed:
+        return []
+    lines = ["### Per-alert detail", ""]
+    for finding in assessed:
+        assessment = finding["assessment"]
+        location = finding.get("location") or {}
+        where = f"{location['path']}:{location['start_line']}" if location.get("path") else "no location"
+        lines += [f"#### {finding['vulnerability']['rule_id']} ({where})", "",
+                  f"- **Verdict:** {assessment['verdict']} (confidence {assessment['confidence']['level']})",
+                  f"- **Why:** {assessment['reason']}"]
+        path = assessment.get("attack_path")
+        if path:
+            hops = " -> ".join(str(hop.get("function") or hop.get("file", "?")) for hop in path)
+            lines.append(f"- **How it could be exploited:** {hops}")
+        elif assessment["verdict"] in ("CONFIRMED_EXPLOITABLE", "POTENTIALLY_EXPLOITABLE"):
+            lines.append("- **How it could be exploited:** see the evidence in the findings file")
+        else:
+            lines.append("- **How it could be exploited:** not established by this analysis")
+        lines += [f"- **Remediation:** {assessment['recommended_remediation']}", ""]
+    return lines
 
 
 def write_outputs(output_dir: Path, assessed: list[dict], summary: dict, tool_version: str,

@@ -136,6 +136,14 @@ def install(source: Path, target: Path, state: Path, key: Ed25519PublicKey) -> d
     installed = state / "installed.json"
     if installed.exists():
         shutil.copyfile(installed, state / "previous-installed.json")
+    # Keep the verified manifest and signature beside the installed files. A reader can then check the files against
+    # the signed manifest again, without the source directory. The previous pair is kept for rollback.
+    for name in ("manifest.json", "manifest.json.sig"):
+        current_copy = state / name
+        if current_copy.exists():
+            shutil.copyfile(current_copy, state / f"previous-{name}")
+    (state / "manifest.json").write_bytes(manifest_bytes)
+    (state / "manifest.json.sig").write_text(signature + "\n", encoding="utf-8")
     staging.rename(target)
     installed.write_text(json.dumps({"version": manifest["version"],
                                      "manifest_sha256": manifest_hash}), encoding="utf-8")
@@ -159,6 +167,11 @@ def rollback(target: Path, state: Path) -> str:
     previous.rename(target)
     shutil.copyfile(previous_record, state / "installed.json")
     previous_record.unlink()
+    for name in ("manifest.json", "manifest.json.sig"):
+        kept = state / f"previous-{name}"
+        if kept.exists():
+            shutil.copyfile(kept, state / name)
+            kept.unlink()
     restored = read_installed_version(state)
     _audit(state, {"event": "rollback", "from": failed, "to": restored})
     return restored
