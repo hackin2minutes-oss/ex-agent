@@ -59,15 +59,18 @@ def project_record(record: dict, exposure: str = "unknown") -> dict:
     vuln = record.get("vulnerability", {})
     dependency = record.get("dependency", {})
     rule_id = vuln.get("id") or record.get("id", "unknown")
+    reporters = [src.get("scanner") for src in vuln.get("scanner_sources") or [] if src.get("scanner")]
+    package = f"{record.get('library', '')}@{dependency.get('version', '')}"
     finding = make_finding(
         category="SCA",
         rule_id=rule_id,
         title=vuln.get("summary") or rule_id,
-        asset={"type": "dependency", "name": record.get("library", "")},
+        asset={"type": "dependency", "name": package},
         location=_location(record),
         severity_reported=vuln.get("severity"),
-        provenance={"scanner": "sawone-sca", "version": None, "format": "evidence-json",
-                    "target": dependency.get("manifest")},
+        provenance={"scanner": reporters[0] if reporters else "sawone-sca", "version": None,
+                    "format": "evidence-json", "target": dependency.get("manifest"),
+                    "reported_by": reporters},
         original=record,
         summary=record.get("classification_reason", ""),
         ids=list(vuln.get("aliases") or []),

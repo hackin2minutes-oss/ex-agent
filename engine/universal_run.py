@@ -1,25 +1,40 @@
-"""Runs the universal path: scanner JSON in, assessed findings and reports out.
+"""Runs the universal path: scanner reports in, assessed findings and reports out.
 
-Separate from the SCA pipeline (engine/pipeline.py, engine/__main__.py), which is unchanged.
-This entry point is `python -m engine.universal_run`. It takes Semgrep JSON today. Adding a
-scanner means registering an adapter in `build_registry`, and adding a domain means
-registering an engine there. Neither changes `run`.
+`python -m engine.universal_run --input A.json --input B.json ...` accepts any number of reports in one run.
+Each report is routed to one of two paths:
+
+- A registered universal adapter (Semgrep, Checkov, Zizmor, Gitleaks, Trivy config, Hadolint, Nuclei). The
+  adapter's findings go to the engine for their category.
+- The SCA path, for Trivy vulnerability, Grype and OSV-Scanner reports. These are merged and run through the
+  existing SCA pipeline (engine/pipeline.py) with the scanner findings imported. The pipeline's evidence is
+  then projected onto the universal model (engine/sca_universal.py). The SCA pipeline is unchanged.
+
+A report that cannot be read or recognised is skipped with a diagnostic, and the run goes on. The run fails
+only if no report can be used. Findings with the same identifier from different reports are merged, and
+every reporter is kept in the finding's `sources`.
+
+Adding a scanner means registering an adapter in `build_registry`. Adding a domain means registering an
+engine there. Neither changes `run`.
 """
 
 import argparse
 import json
+import signal
 import sys
 from pathlib import Path
 
-from engine import report, universal, universal_report
+from engine import findings as sca_findings
+from engine import pipeline, report, sca_universal, universal, universal_report
 from engine.checkov_adapter import CheckovAdapter
 from engine.cicd import CicdEngine
 from engine.container import ContainerEngine
 from engine.dast import DastEngine
 from engine.gitleaks_adapter import GitleaksAdapter
 from engine.hadolint_adapter import HadolintAdapter
-from engine.nuclei_adapter import NucleiAdapter
 from engine.iac import IacEngine
+from engine.iast import IastAdapter, IastEngine
+from engine.rasp import RaspAdapter, RaspEngine
+from engine.nuclei_adapter import NucleiAdapter
 from engine.sast import SastEngine
 from engine.secrets_engine import SecretsEngine
 from engine.semgrep_adapter import SemgrepAdapter
@@ -28,6 +43,12 @@ from engine.universal import EXPOSURES, ModelError, Registry
 from engine.zizmor_adapter import ZizmorAdapter
 
 TOOL_VERSION = "0.1.0"
+# Resource budgets. A report over a budget is skipped with a diagnostic, not read.
+MAX_REPORT_BYTES = 50_000_000
+MAX_RECORDS = 20_000
+DEFAULT_TIMEOUT_SECONDS = 600
+EXIT_TIMEOUT = 3
+DEFAULT_RULES = Path(__file__).resolve().parent.parent / "rules"
 # Verdicts that fail the gate. CONFIRMED_EXPLOITABLE is the default. POTENTIALLY_EXPLOITABLE is
 # stricter, for a team that wants a build to stop on any unresolved potential.
 GATE_VERDICTS = {
@@ -45,12 +66,16 @@ def build_registry() -> Registry:
     registry.register_adapter(TrivyConfigAdapter())
     registry.register_adapter(HadolintAdapter())
     registry.register_adapter(NucleiAdapter())
+    registry.register_adapter(IastAdapter())
+    registry.register_adapter(RaspAdapter())
     registry.register_engine(SastEngine())
     registry.register_engine(IacEngine())
     registry.register_engine(CicdEngine())
     registry.register_engine(SecretsEngine())
     registry.register_engine(ContainerEngine())
     registry.register_engine(DastEngine())
+    registry.register_engine(IastEngine())
+    registry.register_engine(RaspEngine())
     return registry
 
 
@@ -61,39 +86,214 @@ def _count_verdicts(assessed: list[dict]) -> dict:
     return counts
 
 
-def run(input_path: Path, project_dir: Path, output_dir: Path, *, exposure: str = "unknown",
+def _read(path: Path) -> tuple[str, object]:
+    text = path.read_text(encoding="utf-8")
+    return text, json.loads(text)
+
+
+def _image_inventory_finding(item: dict, document: dict, exposure: str) -> dict:
+    """A vulnerability in a package installed in a container image. Its verdict is UNKNOWN: the scan shows the
+    package is present, not that the application uses the vulnerable part of it."""
+    ecosystem = "operating-system package" if item.get("ecosystem") in (None, "unknown") else "installed package"
+    package = f"{item.get('name', '')}@{item.get('version', '')}"
+    finding = universal.make_finding(
+        category="CONTAINER",
+        rule_id=item.get("primary_id") or "unknown",
+        title=item.get("summary") or item.get("primary_id") or "unknown",
+        asset={"type": "container_image", "name": document.get("ArtifactName") or "image"},
+        location=None,
+        severity_reported=item.get("severity"),
+        provenance={"scanner": (item.get("sources") or [{}])[0].get("scanner", "unknown"),
+                    "version": None, "format": "scanner-json", "target": package,
+                    "reported_by": [src.get("scanner") for src in item.get("sources") or []]},
+        original=item,
+        ids=list(item.get("ids") or []),
+        exposure=exposure,
+        identity=(package,),
+    )
+    finding["assessment"] = universal.make_assessment(
+        universal.UNKNOWN,
+        reason=f"{ecosystem} {package} is present in the image; whether the application uses the "
+               "vulnerable part is not analysed",
+        engine="container-image-inventory",
+        coverage={"analysed": [f"{package} present in the image"],
+                  "not_analysed": ["application use of the package", "runtime exposure of the container"]},
+        limitations=["application use of the package is not analysed",
+                     "runtime exposure and isolation of the container are not analysed"],
+        exposure=exposure,
+    ).to_dict()
+    return finding
+
+
+def _sca_incomplete(item: dict, exposure: str, reason: str) -> dict:
+    """An imported SCA finding whose analysis failed. It is reported, not dropped."""
+    package = f"{item.get('name', '')}@{item.get('version', '')}"
+    finding = universal.make_finding(
+        category="SCA",
+        rule_id=item.get("primary_id") or "unknown",
+        title=item.get("summary") or item.get("primary_id") or "unknown",
+        asset={"type": "dependency", "name": package},
+        location=None,
+        severity_reported=item.get("severity"),
+        provenance={"scanner": (item.get("sources") or [{}])[0].get("scanner", "unknown"),
+                    "version": None, "format": "scanner-json", "target": None},
+        original=item,
+        ids=list(item.get("ids") or []),
+        exposure=exposure,
+    )
+    finding["assessment"] = universal.incomplete_assessment(reason, engine="sca-pipeline").to_dict()
+    return finding
+
+
+def _run_sca(sca_inputs: list[tuple[str, list[dict]]], project_dir: Path, output_dir: Path, *,
+             exposure: str, offline: bool, rules_dir: Path, diagnostics: list[str]) -> list[dict]:
+    """Run the SCA pipeline over the imported scanner findings and project its evidence."""
+    imported = []
+    for name, items in sca_inputs:
+        imported.extend(items)
+    merged = sca_findings.merge_findings(imported)
+    sca_dir = output_dir / "sca"
+    try:
+        summary = pipeline.run(project_dir, None, rules_dir, sca_dir, "confirmed_reachable",
+                               offline=offline, exposure=exposure, imported_findings=merged)
+        evidence = json.loads((sca_dir / "evidence.json").read_text(encoding="utf-8"))
+    except (ModelError, OSError, ValueError, KeyError) as exc:
+        reason = f"SCA analysis failed: {type(exc).__name__}: {exc}"[:300]
+        diagnostics.append(reason)
+        return [_sca_incomplete(item, exposure, reason) for item in merged]
+    for note in summary.get("notes") or []:
+        diagnostics.append(f"sca: {note}")
+    projected = [sca_universal.project_record(record, exposure)
+                 for record in evidence.get("findings", [])]
+    diagnostics.append(f"sca: {len(merged)} imported scanner finding(s), {len(projected)} assessed")
+    return projected
+
+
+def _sources_of(finding: dict) -> list[dict]:
+    """One provenance record per reporter. The SCA projection lists every reporter it merged."""
+    provenance = finding["provenance"]
+    # Each reporter once. The per-record details of each source stay in the pipeline's evidence.
+    reporters = list(dict.fromkeys(provenance.get("reported_by") or []))
+    if not reporters:
+        return [provenance]
+    return [{**provenance, "scanner": name} for name in reporters]
+
+
+def _merge_duplicates(findings: list[dict]) -> list[dict]:
+    """Merge findings that share an identifier. The first is kept, and every reporter is listed in `sources`."""
+    merged: dict[str, dict] = {}
+    for finding in findings:
+        existing = merged.get(finding["id"])
+        if existing is None:
+            finding["sources"] = _sources_of(finding)
+            merged[finding["id"]] = finding
+            continue
+        for source in _sources_of(finding):
+            if source not in existing["sources"]:
+                existing["sources"].append(source)
+    return list(merged.values())
+
+
+def run(inputs, project_dir: Path, output_dir: Path, *, exposure: str = "unknown",
         adapter_name: str | None = None, fail_on: str = "confirmed_exploitable",
-        registry: Registry | None = None) -> dict:
+        registry: Registry | None = None, offline: bool = True,
+        rules_dir: Path = DEFAULT_RULES, max_report_bytes: int = MAX_REPORT_BYTES,
+        max_records: int = MAX_RECORDS) -> dict:
     if fail_on not in GATE_VERDICTS:
         raise ModelError(f"unknown gate: {fail_on}")
     if exposure not in EXPOSURES:
         raise ModelError(f"unknown exposure: {exposure}")
+    input_paths = [Path(p) for p in ([inputs] if isinstance(inputs, (str, Path)) else inputs)]
+    if not input_paths:
+        raise ModelError("no scanner report was given")
     registry = registry or build_registry()
-    try:
-        document = json.loads(input_path.read_text(encoding="utf-8"))
-    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
-        raise ModelError(f"input is not readable JSON: {exc}") from exc
 
-    if adapter_name:
-        adapter = registry.adapter(adapter_name)
-    else:
-        adapter = registry.detect_adapter(document)
-        if adapter is None:
-            raise ModelError("no registered adapter recognises this input; pass --adapter")
-    findings, diagnostics = adapter.parse(document, {"target": input_path.name})
+    diagnostics: list[str] = []
+    findings: list[dict] = []
+    sca_inputs: list[tuple[str, list[dict]]] = []
+    adapters_used: list[str] = []
+    inputs_summary = []
+    for path in input_paths:
+        try:
+            size = path.stat().st_size
+        except OSError as exc:
+            diagnostics.append(f"skipped {path.name}: not readable ({type(exc).__name__})")
+            inputs_summary.append({"input": path.name, "route": "skipped"})
+            continue
+        if size > max_report_bytes:
+            diagnostics.append(f"skipped {path.name}: {size} bytes exceeds the {max_report_bytes}-byte budget")
+            inputs_summary.append({"input": path.name, "route": "skipped"})
+            continue
+        try:
+            _, document = _read(path)
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+            diagnostics.append(f"skipped {path.name}: not readable JSON ({type(exc).__name__})")
+            inputs_summary.append({"input": path.name, "route": "skipped"})
+            continue
+        if adapter_name:
+            adapter = registry.adapter(adapter_name)
+        else:
+            adapter = registry.detect_adapter(document)
+        try:
+            if adapter is not None:
+                parsed, parse_notes = adapter.parse(document, {"target": path.name})
+                if len(parsed) > max_records:
+                    raise ModelError(f"{len(parsed)} records exceed the {max_records}-record budget")
+                findings.extend(parsed)
+                adapters_used.append(adapter.name)
+                diagnostics.extend(parse_notes)
+                inputs_summary.append({"input": path.name, "route": adapter.name,
+                                       "records": len(parsed)})
+                continue
+            detected = sca_findings.detect(json.dumps(document))
+            if detected is not None:
+                _, items = detected
+                if len(items) > max_records:
+                    raise ModelError(f"{len(items)} records exceed the {max_records}-record budget")
+                if document.get("ArtifactType") == "container_image":
+                    # An image scan lists what is installed in the image. It does not show what the application
+                    # uses, so it is not run through the application SCA analysis.
+                    image_findings = [_image_inventory_finding(item, document, exposure) for item in items]
+                    findings.extend(image_findings)
+                    inputs_summary.append({"input": path.name, "route": "container-image",
+                                           "records": len(items)})
+                    diagnostics.append(f"container-image: {len(items)} installed-package finding(s) "
+                                       "recorded as present in the image, not analysed for use by the application")
+                    continue
+                sca_inputs.append((path.name, items))
+                inputs_summary.append({"input": path.name, "route": "sca", "records": len(items)})
+                continue
+        except ModelError as exc:
+            diagnostics.append(f"skipped {path.name}: {exc}")
+            inputs_summary.append({"input": path.name, "route": "skipped"})
+            continue
+        diagnostics.append(f"skipped {path.name}: no registered adapter or SCA format recognises it")
+        inputs_summary.append({"input": path.name, "route": "skipped"})
+
+    if not any(item["route"] != "skipped" for item in inputs_summary):
+        raise ModelError("no scanner report could be used: " + "; ".join(diagnostics))
+
     for finding in findings:
         finding["exploitability_context"]["exposure"] = exposure
+    if sca_inputs:
+        sca_results = _run_sca(sca_inputs, project_dir.resolve(), output_dir, exposure=exposure,
+                               offline=offline, rules_dir=rules_dir, diagnostics=diagnostics)
+        findings.extend(sca_results)
+        adapters_used.append("sca-pipeline")
 
-    assessed = universal.assess_all(findings, registry, {"project_dir": project_dir.resolve(),
-                                                         "exposure": exposure})
-    limitations = sorted({item for finding in assessed
-                          for item in finding["assessment"]["limitations"]})
+    unassessed = [f for f in findings if "assessment" not in f]
+    assessed = universal.assess_all(unassessed, registry, {"project_dir": project_dir.resolve(),
+                                                           "exposure": exposure})
+    assessed = [f for f in findings if "assessment" in f] + assessed
+    assessed = _merge_duplicates(assessed)
+    limitations = sorted({item for finding in assessed for item in finding["assessment"]["limitations"]})
     summary = {
+        "inputs": inputs_summary,
         "findings": len(assessed),
         "verdicts": _count_verdicts(assessed),
         "categories": sorted({f["category"] for f in assessed}),
         "exposure": exposure,
-        "adapters": [adapter.name],
+        "adapters": adapters_used,
         "engines": registry.engines(),
         "diagnostics": diagnostics,
         "limitations": limitations,
@@ -104,10 +304,31 @@ def run(input_path: Path, project_dir: Path, output_dir: Path, *, exposure: str 
     return summary
 
 
+def _optional_path(value: str) -> Path | None:
+    # Action inputs arrive as empty strings when unset; an empty path means "the shipped rules".
+    return Path(value) if value else None
+
+
+def _bool(value: str) -> bool:
+    # Action inputs arrive as strings, and a Docker action's arguments are fixed, so the flag is a value.
+    if value.lower() in {"true", "1", "yes"}:
+        return True
+    if value.lower() in {"false", "0", "no", ""}:
+        return False
+    raise argparse.ArgumentTypeError(f"expected true or false, got {value!r}")
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="engine.universal_run",
-                                     description="Assess scanner findings with the universal engine.")
-    parser.add_argument("--input", type=Path, required=True, help="Scanner JSON output")
+                                     description="Assess scanner reports with the universal engine.")
+    parser.add_argument("--input", type=Path, action="append", default=[],
+                        help="Scanner report. Repeat for several reports in one run.")
+    parser.add_argument("--inputs", default="",
+                        help="Comma- or newline-separated list of scanner reports (for the action).")
+    parser.add_argument("--max-report-bytes", type=int, default=MAX_REPORT_BYTES)
+    parser.add_argument("--max-records", type=int, default=MAX_RECORDS)
+    parser.add_argument("--timeout-seconds", type=int, default=DEFAULT_TIMEOUT_SECONDS,
+                        help="Wall-clock limit for the whole run; 0 disables it.")
     parser.add_argument("--project-dir", type=Path, required=True)
     parser.add_argument("--output-dir", type=Path, default=Path("universal-report"))
     parser.add_argument("--exposure", choices=EXPOSURES, default="unknown")
@@ -115,13 +336,38 @@ def main(argv: list[str] | None = None) -> int:
                         help="Verdicts that make the run exit 1")
     parser.add_argument("--adapter", default=None,
                         help="Adapter name, for input that detection cannot tell apart (e.g. empty output)")
+    parser.add_argument("--rules-dir", type=_optional_path, default=None,
+                        help="Curated SCA rules directory")
+    parser.add_argument("--offline", type=_bool, default=False,
+                        help="true to skip advisory and intelligence lookups for the SCA path")
     args = parser.parse_args(argv)
+    if args.rules_dir is None:
+        args.rules_dir = DEFAULT_RULES
+    listed = [Path(item.strip()) for item in args.inputs.replace(",", "\n").splitlines() if item.strip()]
+    inputs = list(args.input) + listed
+    if not inputs:
+        parser.error("give at least one --input or --inputs")
+
+    def on_timeout(signum, frame):
+        raise TimeoutError(f"the run exceeded {args.timeout_seconds} seconds")
+
+    if args.timeout_seconds > 0 and hasattr(signal, "SIGALRM"):
+        signal.signal(signal.SIGALRM, on_timeout)
+        signal.alarm(args.timeout_seconds)
     try:
-        summary = run(args.input, args.project_dir, args.output_dir, exposure=args.exposure,
-                      adapter_name=args.adapter, fail_on=args.fail_on)
+        summary = run(inputs, args.project_dir, args.output_dir, exposure=args.exposure,
+                      adapter_name=args.adapter, fail_on=args.fail_on, offline=args.offline,
+                      rules_dir=args.rules_dir, max_report_bytes=args.max_report_bytes,
+                      max_records=args.max_records)
     except ModelError as exc:
         print(f"rejected: {exc}", file=sys.stderr)
         return 2
+    except TimeoutError as exc:
+        print(f"timed out: {exc}", file=sys.stderr)
+        return EXIT_TIMEOUT
+    finally:
+        if hasattr(signal, "SIGALRM"):
+            signal.alarm(0)
 
     markdown = (args.output_dir / "universal-report.md").read_text(encoding="utf-8")
     report.append_job_summary(markdown)

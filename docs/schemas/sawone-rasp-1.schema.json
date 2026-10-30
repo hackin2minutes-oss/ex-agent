@@ -1,0 +1,72 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/hackin2minutes-oss/ex-agent/docs/schemas/sawone-rasp-1.schema.json",
+  "title": "SAWONE RASP evidence, version 1",
+  "description": "Protection events from a RASP agent: an attack seen at runtime, and whether the protection blocked it. Raw input values are not accepted; only a SHA-256 of the value. `simulated` must be true for synthetic fixtures.",
+  "type": "object",
+  "required": ["schema", "agent", "events"],
+  "additionalProperties": false,
+  "properties": {
+    "schema": {"const": "sawone.rasp/1"},
+    "agent": {
+      "type": "object",
+      "required": ["name", "version", "simulated"],
+      "additionalProperties": false,
+      "properties": {
+        "name": {"type": "string", "minLength": 1},
+        "version": {"type": "string", "minLength": 1},
+        "simulated": {"type": "boolean"}
+      }
+    },
+    "events": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "request_id", "rule_id", "category", "action", "endpoint", "input", "protection"],
+        "additionalProperties": false,
+        "properties": {
+          "id": {"type": "string", "minLength": 1},
+          "timestamp": {"type": "string"},
+          "request_id": {"type": "string", "minLength": 1},
+          "rule_id": {"type": "string", "minLength": 1},
+          "category": {"enum": ["sql_injection", "command_injection", "path_traversal", "ssrf", "xss", "deserialization", "other"]},
+          "action": {"enum": ["blocked", "allowed"]},
+          "endpoint": {
+            "type": "object",
+            "required": ["method", "route"],
+            "additionalProperties": false,
+            "properties": {"method": {"type": "string"}, "route": {"type": "string"}}
+          },
+          "input": {
+            "type": "object",
+            "required": ["location", "name", "value_sha256"],
+            "additionalProperties": false,
+            "properties": {
+              "location": {"enum": ["query", "body", "header", "path", "cookie"]},
+              "name": {"type": "string"},
+              "value_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+            }
+          },
+          "application_context": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "file": {"type": "string"},
+              "line": {"type": "integer", "minimum": 1},
+              "function": {"type": "string"}
+            }
+          },
+          "protection": {
+            "type": "object",
+            "required": ["enabled"],
+            "additionalProperties": false,
+            "properties": {
+              "enabled": {"type": "boolean"},
+              "sinks_protected": {"type": "array", "items": {"type": "string"}}
+            }
+          }
+        }
+      }
+    }
+  }
+}

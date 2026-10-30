@@ -1,0 +1,106 @@
+{
+  "schema": "sawone.rasp/1",
+  "agent": {
+    "name": "synthetic-rasp-agent",
+    "version": "0.0.0-fixture",
+    "simulated": true
+  },
+  "events": [
+    {
+      "id": "evt-1",
+      "timestamp": "2026-10-30T10:00:00Z",
+      "request_id": "req-301",
+      "rule_id": "RASP-SQLI-001",
+      "category": "sql_injection",
+      "action": "blocked",
+      "endpoint": {
+        "method": "GET",
+        "route": "/search"
+      },
+      "input": {
+        "location": "query",
+        "name": "q",
+        "value_sha256": "f31c00c8808fcfbd376f84628b61badd1652fbb0541355745b2e2495e08b5293"
+      },
+      "application_context": {
+        "file": "app.py",
+        "line": 6,
+        "function": "render_safe"
+      },
+      "protection": {
+        "enabled": true,
+        "sinks_protected": [
+          "sql_execution"
+        ]
+      }
+    },
+    {
+      "id": "evt-2",
+      "timestamp": "2026-10-30T10:00:05Z",
+      "request_id": "req-302",
+      "rule_id": "RASP-XSS-002",
+      "category": "xss",
+      "action": "allowed",
+      "endpoint": {
+        "method": "GET",
+        "route": "/raw"
+      },
+      "input": {
+        "location": "query",
+        "name": "q",
+        "value_sha256": "4cd698ac546c7520f4287ca5fb1635a46b64f635c6914ff1d73adf41772220c2"
+      },
+      "application_context": {
+        "file": "app.py",
+        "line": 10,
+        "function": "render_raw"
+      },
+      "protection": {
+        "enabled": true,
+        "sinks_protected": [
+          "html_output"
+        ]
+      }
+    },
+    {
+      "id": "evt-3",
+      "timestamp": "2026-10-30T10:00:09Z",
+      "request_id": "req-303",
+      "rule_id": "RASP-XSS-002",
+      "category": "xss",
+      "action": "blocked",
+      "endpoint": {
+        "method": "GET",
+        "route": "/raw"
+      },
+      "input": {
+        "location": "query",
+        "name": "q",
+        "value_sha256": "8a92abc7ed1c17f27ef54478a3987b58c7065ac6b937268a61a0d0749d8a34b8"
+      },
+      "protection": {
+        "enabled": false
+      }
+    },
+    {
+      "id": "evt-4",
+      "timestamp": "2026-10-30T10:00:12Z",
+      "request_id": "req-304",
+      "rule_id": "RASP-CMD-003",
+      "category": "command_injection",
+      "action": "blocked",
+      "endpoint": {
+        "method": "POST",
+        "route": "/run"
+      },
+      "input": {
+        "location": "body",
+        "name": "cmd",
+        "value_sha256": "665eee4698b2b4345f757a60456c2214a24885ab563f1d9a48e05992e6299d4b"
+      },
+      "protection": {
+        "enabled": true
+      }
+    }
+  ]
+}

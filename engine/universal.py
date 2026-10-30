@@ -26,11 +26,12 @@ from pathlib import Path
 CONFIRMED_EXPLOITABLE = "CONFIRMED_EXPLOITABLE"
 POTENTIALLY_EXPLOITABLE = "POTENTIALLY_EXPLOITABLE"
 NOT_EXPLOITABLE = "NOT_EXPLOITABLE"
+NOT_REACHABLE = "NOT_REACHABLE"
 NOT_AFFECTED = "NOT_AFFECTED"
 MITIGATED = "MITIGATED"
 UNKNOWN = "UNKNOWN"
 ANALYSIS_INCOMPLETE = "ANALYSIS_INCOMPLETE"
-VERDICTS = (CONFIRMED_EXPLOITABLE, POTENTIALLY_EXPLOITABLE, NOT_EXPLOITABLE, NOT_AFFECTED,
+VERDICTS = (CONFIRMED_EXPLOITABLE, POTENTIALLY_EXPLOITABLE, NOT_EXPLOITABLE, NOT_REACHABLE, NOT_AFFECTED,
             MITIGATED, UNKNOWN, ANALYSIS_INCOMPLETE)
 
 CATEGORIES = ("SAST", "SCA", "DAST", "IAST", "RASP", "SECRET", "IAC", "CONTAINER", "K8S",
@@ -75,14 +76,15 @@ def normalise_severity(reported) -> str:
 
 
 def finding_id(category: str, rule: str, target: str, *parts) -> str:
-    """Stable identifier for a finding, derived from what identifies it."""
+    """Stable identifier for a finding, derived from what identifies it. Runtime findings add the
+    observation and request as `identity`, so two requests that reach one sink are two findings."""
     digest = hashlib.sha256("|".join([category, rule, target, *map(str, parts)]).encode())
     return digest.hexdigest()[:16]
 
 
 def make_finding(*, category: str, rule_id: str, title: str, asset: dict, location: dict | None,
                  severity_reported, provenance: dict, original: dict, summary: str = "",
-                 ids: list[str] | None = None, exposure: str = "unknown") -> dict:
+                 ids: list[str] | None = None, exposure: str = "unknown", identity: tuple = ()) -> dict:
     """Build one universal finding. Raises ModelError on values the model does not allow."""
     if category not in CATEGORIES:
         raise ModelError(f"unknown category: {category}")
@@ -98,7 +100,7 @@ def make_finding(*, category: str, rule_id: str, title: str, asset: dict, locati
     start = location.get("start_line") if location else None
     col = location.get("start_col") if location else None
     return {
-        "id": finding_id(category, rule_id, str(target), start, col),
+        "id": finding_id(category, rule_id, str(target), start, col, *identity),
         "category": category,
         "vulnerability": {
             "rule_id": rule_id,
@@ -195,6 +197,9 @@ def make_assessment(verdict: str, *, reason: str, engine: str, conditions: dict 
     if verdict == NOT_EXPLOITABLE:
         if not any(backed(n, NOT_CONFIRMED) for n in CONDITIONS):
             raise ModelError("NOT_EXPLOITABLE needs a NOT_CONFIRMED condition with evidence")
+    elif verdict == NOT_REACHABLE:
+        if not backed("reachable", NOT_CONFIRMED):
+            raise ModelError("NOT_REACHABLE needs reachable NOT_CONFIRMED with evidence")
     elif verdict == NOT_AFFECTED:
         if not backed("vulnerability_exists", NOT_CONFIRMED):
             raise ModelError("NOT_AFFECTED needs vulnerability_exists NOT_CONFIRMED with evidence")
@@ -236,7 +241,7 @@ LEGACY_TO_VERDICT = {
     "reachable_but_relevant_preconditions_not_met": POTENTIALLY_EXPLOITABLE,
     "vulnerable_function_reachable": POTENTIALLY_EXPLOITABLE,
     "reachable_preconditions_unknown": POTENTIALLY_EXPLOITABLE,
-    "not_reachable_within_analysed_scope": NOT_EXPLOITABLE,
+    "not_reachable_within_analysed_scope": NOT_REACHABLE,
     "not_affected": NOT_AFFECTED,
     "vulnerable_component_only": UNKNOWN,
     "unknown": UNKNOWN,

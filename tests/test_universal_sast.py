@@ -231,11 +231,13 @@ class UniversalRunEndToEndTest(unittest.TestCase):
         self.assertEqual(summary["verdicts"]["CONFIRMED_EXPLOITABLE"], 0)
         self.assertEqual(summary["exposure"], "internet")
 
-    def test_sca_scanner_output_is_refused_by_the_universal_path(self):
-        trivy = self.tmp / "trivy.json"
-        trivy.write_text(json.dumps({"SchemaVersion": 2, "Results": []}), encoding="utf-8")
+    def test_unrecognised_report_is_refused_when_nothing_else_is_usable(self):
+        # An empty Trivy vulnerability report is valid SCA input now (the SCA route handles it).
+        # A document no adapter or SCA format recognises is still refused.
+        unknown = self.tmp / "unknown.json"
+        unknown.write_text(json.dumps({"something": "else"}), encoding="utf-8")
         with self.assertRaises(ModelError):
-            universal_run.run(trivy, PROJECT, self.out)
+            universal_run.run(unknown, PROJECT, self.out)
 
     def test_command_line_exit_codes(self):
         self.assertEqual(universal_run.main(["--input", str(REAL), "--project-dir", str(PROJECT),

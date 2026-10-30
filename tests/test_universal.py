@@ -31,9 +31,11 @@ def evidence(condition, detail="checked"):
 
 
 class ModelFieldsTest(unittest.TestCase):
-    def test_exactly_the_mandate_verdicts(self):
+    def test_exactly_the_completion_mandate_verdicts(self):
+        # The completion mandate lists eight verdicts. NOT_REACHABLE was added to the seven of the
+        # earlier mandate for the analysed-scope "not reachable" result.
         self.assertEqual(universal.VERDICTS, (
-            "CONFIRMED_EXPLOITABLE", "POTENTIALLY_EXPLOITABLE", "NOT_EXPLOITABLE",
+            "CONFIRMED_EXPLOITABLE", "POTENTIALLY_EXPLOITABLE", "NOT_EXPLOITABLE", "NOT_REACHABLE",
             "NOT_AFFECTED", "MITIGATED", "UNKNOWN", "ANALYSIS_INCOMPLETE"))
 
     def test_rejects_unknown_category_and_asset_type(self):
@@ -159,7 +161,7 @@ class LegacyMappingTest(unittest.TestCase):
         self.assertEqual(universal.from_legacy("not_affected"), NOT_AFFECTED)
         self.assertEqual(universal.from_legacy("analysis_failed"), ANALYSIS_INCOMPLETE)
         self.assertEqual(universal.from_legacy("not_reachable_within_analysed_scope"),
-                         NOT_EXPLOITABLE)
+                         universal.NOT_REACHABLE)
 
     def test_unlisted_or_component_only_classes_never_become_a_safe_verdict(self):
         self.assertEqual(universal.from_legacy("vulnerable_component_only"), UNKNOWN)
@@ -177,6 +179,18 @@ class FakeEngine(Engine):
 
     def assess(self, finding, context):
         return self.behaviour(finding, context)
+
+
+class NotReachableRuleTest(unittest.TestCase):
+    def test_not_reachable_needs_backed_reachability_not_confirmed(self):
+        with self.assertRaises(ModelError):
+            make_assessment(universal.NOT_REACHABLE, reason="x", engine="e",
+                            conditions={"reachable": Condition(UNKNOWN_STATUS, ["maybe"])},
+                            evidence=[evidence("reachable")])
+        result = make_assessment(universal.NOT_REACHABLE, reason="x", engine="e",
+                                 conditions={"reachable": Condition(NOT_CONFIRMED, ["no path"])},
+                                 evidence=[evidence("reachable")])
+        self.assertEqual(result.verdict, universal.NOT_REACHABLE)
 
 
 class RegistryTest(unittest.TestCase):

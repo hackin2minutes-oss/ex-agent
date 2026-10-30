@@ -1,0 +1,983 @@
+{
+ "SchemaVersion": 2,
+ "CreatedAt": "2026-10-30T14:00:32.998466647Z",
+ "ArtifactName": "sawone-local:test",
+ "ArtifactType": "container_image",
+ "Metadata": {
+  "OS": {
+   "Family": "debian",
+   "Name": "13.7"
+  },
+  "ImageID": "sha256:53a881b7a63d6aa08769916b569d1d8eb0ac55f005f0ba0cbc478fcc3a3054b2",
+  "DiffIDs": [
+   "sha256:a5d6d345f6afa08d7c31272055746d60a838b290bfcc82c0a23e8e984d61a933",
+   "sha256:b9baa14e993c683240d519adebb39657df4d2b973dc2f3fee23cd51367806e2b",
+   "sha256:1217eb836a36d0c4be6a310113a777ecb9d7e9c24197a407665c8884cc5369a4",
+   "sha256:3929d22d8aa43d69f436bbc47ef472db875440b850dbc4e80dd272a3adf673d2",
+   "sha256:5f70bf18a086007016e948b04aed3b82103a36bea41755b6cddfaf10ace3c6ef",
+   "sha256:3a60fb135db968cb90e32594360e867943c0fca5ed6b27d107b6c1574c7f301c",
+   "sha256:5789d5d858ebbd6ed535fc5006287173a0a5f680e2d809145f0de2feb7fcd92b",
+   "sha256:78b310a402571e0821d21877abbe2766653890ba76bde7d2bd34b5e686193a0c",
+   "sha256:fc0c45198f8170aa8503fd11adef3205d06d70dfdaab139c8b60b2d3c07ba4ed",
+   "sha256:fe07f24b2b563d91f32c1cc32e03ef3072b3910c33c71409faa67020224e4372",
+   "sha256:c5c7e5e4c909aa8dad308844353ae77aa7d52963ca6318372702ba57eba39e43",
+   "sha256:afcbb43373e64525d8c027f80495230227a99f73100425bf9e42d2f002ff57b3",
+   "sha256:e2add39240cc2d81eb03193f8e912c5bb0682a2f622ad83fdbf4921b5bf267cc"
+  ],
+  "RepoTags": [
+   "sawone-local:test"
+  ],
+  "RepoDigests": [
+   "sawone-local@sha256:53a881b7a63d6aa08769916b569d1d8eb0ac55f005f0ba0cbc478fcc3a3054b2"
+  ],
+  "ImageConfig": {
+   "architecture": "amd64",
+   "created": "2026-10-30T13:58:36.155169554Z",
+   "history": [
+    {
+     "created": "2026-10-27T00:00:00Z",
+     "created_by": "# debian.sh --arch 'amd64' out/ 'trixie' '@1793059200'",
+     "comment": "debuerreotype 0.17"
+    },
+    {
+     "created": "2026-10-28T01:54:21Z",
+     "created_by": "ENV PATH=/usr/local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+     "comment": "buildkit.dockerfile.v0",
+     "empty_layer": true
+    },
+    {
+     "created": "2026-10-28T01:54:21Z",
+     "created_by": "ENV LANG=C.UTF-8",
+     "comment": "buildkit.dockerfile.v0",
+     "empty_layer": true
+    },
+    {
+     "created": "2026-10-28T01:54:21Z",
+     "created_by": "RUN /bin/sh -c set -eux; \tapt-get update; \tapt-get install -y --no-install-recommends \t\tca-certificates \t\tnetbase \t\ttzdata \t; \tapt-get dist-clean # buildkit",
+     "comment": "buildkit.dockerfile.v0"
+    },
+    {
+     "created": "2026-10-28T01:54:21Z",
+     "created_by": "ENV GPG_KEY=0000000000000000000000000000000000000000",
+     "comment": "buildkit.dockerfile.v0",
+     "empty_layer": true
+    },
+    {
+     "created": "2026-10-28T01:54:21Z",
+     "created_by": "ENV PYTHON_VERSION=3.13.18",
+     "comment": "buildkit.dockerfile.v0",
+     "empty_layer": true
+    },
+    {
+     "created": "2026-10-28T01:54:21Z",
+     "created_by": "ENV PYTHON_SHA256=abb0102e6d4ae027509bcb82327d9dd85515b44a3ba8ad538cfc5e9847029f68",
+     "comment": "buildkit.dockerfile.v0",
+     "empty_layer": true
+    },
+    {
+     "created": "2026-10-28T02:04:41Z",
+     "created_by": "RUN /bin/sh -c set -eux; \t\tsavedAptMark=\"$(apt-mark showmanual)\"; \tapt-get update; \tapt-get install -y --no-install-recommends \t\tdpkg-dev \t\tg++ \t\tgcc \t\tgnupg \t\tlibbluetooth-dev \t\tlibbz2-dev \t\tlibc6-dev \t\tlibdb-dev \t\tlibffi-dev \t\tlibgdbm-dev \t\tliblzma-dev \t\tlibncursesw5-dev \t\tlibreadline-dev \t\tlibsqlite3-dev \t\tlibssl-dev \t\tmake \t\ttk-dev \t\tuuid-dev \t\twget \t\txz-utils \t\tzlib1g-dev \t; \t\twget -O python.tar.xz \"https://www.python.org/ftp/python/${PYTHON_VERSION%%[a-z]*}/Python-$PYTHON_VERSION.tar.xz\"; \techo \"$PYTHON_SHA256 *python.tar.xz\" | sha256sum -c -; \twget -O python.tar.xz.asc \"https://www.python.org/ftp/python/${PYTHON_VERSION%%[a-z]*}/Python-$PYTHON_VERSION.tar.xz.asc\"; \tGNUPGHOME=\"$(mktemp -d)\"; export GNUPGHOME; \tgpg --batch --keyserver hkps://keys.openpgp.org --recv-keys \"$GPG_KEY\"; \tgpg --batch --verify python.tar.xz.asc python.tar.xz; \tgpgconf --kill all; \trm -rf \"$GNUPGHOME\" python.tar.xz.asc; \tmkdir -p /usr/src/python; \ttar --extract --directory /usr/src/python --strip-components=1 --file python.tar.xz; \trm python.tar.xz; \t\tcd /usr/src/python; \tgnuArch=\"$(dpkg-architecture --query DEB_BUILD_GNU_TYPE)\"; \t./configure \t\t--build=\"$gnuArch\" \t\t--enable-loadable-sqlite-extensions \t\t--enable-optimizations \t\t--enable-option-checking=fatal \t\t--enable-shared \t\t$(test \"${gnuArch%%-*}\" != 'riscv64' && echo '--with-lto') \t\t--with-ensurepip \t; \tnproc=\"$(nproc)\"; \tEXTRA_CFLAGS=\"$(dpkg-buildflags --get CFLAGS)\"; \tLDFLAGS=\"$(dpkg-buildflags --get LDFLAGS)\"; \tLDFLAGS=\"${LDFLAGS:-} -Wl,--strip-all\"; \tarch=\"$(dpkg --print-architecture)\"; arch=\"${arch##*-}\"; \tcase \"$arch\" in \t\tamd64|arm64) \t\t\tEXTRA_CFLAGS=\"${EXTRA_CFLAGS:-} -fno-omit-frame-pointer -mno-omit-leaf-frame-pointer\"; \t\t\t;; \t\ti386) \t\t\t;; \t\t*) \t\t\tEXTRA_CFLAGS=\"${EXTRA_CFLAGS:-} -fno-omit-frame-pointer\"; \t\t\t;; \tesac; \tmake -j \"$nproc\" \t\t\"EXTRA_CFLAGS=${EXTRA_CFLAGS:-}\" \t\t\"LDFLAGS=${LDFLAGS:-}\" \t; \trm python; \tmake -j \"$nproc\" \t\t\"EXTRA_CFLAGS=${EXTRA_CFLAGS:-}\" \t\t\"LDFLAGS=${LDFLAGS:-} -Wl,-rpath='\\$\\$ORIGIN/../lib'\" \t\tpython \t; \tmake install; \t\tcd /; \trm -rf /usr/src/python; \t\tfind /usr/local -depth \t\t\\( \t\t\t\\( -type d -a \\( -name test -o -name tests -o -name idle_test \\) \\) \t\t\t-o \\( -type f -a \\( -name '*.pyc' -o -name '*.pyo' -o -name 'libpython*.a' \\) \\) \t\t\\) -exec rm -rf '{}' + \t; \t\tldconfig; \t\tapt-mark auto '.*' > /dev/null; \tapt-mark manual $savedAptMark; \tfind /usr/local -type f -executable -not \\( -name '*tkinter*' \\) -exec ldd '{}' ';' \t\t| awk '/=>/ { so = $(NF-1); if (index(so, \"/usr/local/\") == 1) { next }; gsub(\"^/(usr/)?\", \"\", so); printf \"*%s\\n\", so }' \t\t| sort -u \t\t| xargs -rt dpkg-query --search \t\t| awk 'sub(\":$\", \"\", $1) { print $1 }' \t\t| sort -u \t\t| xargs -r apt-mark manual \t; \tapt-get purge -y --auto-remove -o APT::AutoRemove::RecommendsImportant=false; \tapt-get dist-clean; \t\texport PYTHONDONTWRITEBYTECODE=1; \tpython3 --version; \tpip3 --version # buildkit",
+     "comment": "buildkit.dockerfile.v0"
+    },
+    {
+     "created": "2026-10-28T02:04:41Z",
+     "created_by": "RUN /bin/sh -c set -eux; \tfor src in idle3 pip3 pydoc3 python3 python3-config; do \t\tdst=\"$(echo \"$src\" | tr -d 3)\"; \t\t[ -s \"/usr/local/bin/$src\" ]; \t\t[ ! -e \"/usr/local/bin/$dst\" ]; \t\tln -svT \"$src\" \"/usr/local/bin/$dst\"; \tdone # buildkit",
+     "comment": "buildkit.dockerfile.v0"
+    },
+    {
+     "created": "2026-10-28T02:04:41Z",
+     "created_by": "CMD [\"python3\"]",
+     "comment": "buildkit.dockerfile.v0",
+     "empty_layer": true
+    },
+    {
+     "created": "2026-10-30T11:02:57Z",
+     "created_by": "ARG CODEQL_VERSION=",
+     "comment": "buildkit.dockerfile.v0",
+     "empty_layer": true
+    },
+    {
+     "created": "2026-10-30T11:02:57Z",
+     "created_by": "RUN |1 CODEQL_VERSION= /bin/sh -c if [ -n \"$CODEQL_VERSION\" ]; then       apt-get update && apt-get install -y --no-install-recommends unzip curl ca-certificates       && curl -sSLf -o /tmp/codeql.zip          \"https://github.com/github/codeql-cli-binaries/releases/download/v${CODEQL_VERSION}/codeql-linux64.zip\"       && unzip -q /tmp/codeql.zip -d /opt       && rm -rf /tmp/codeql.zip /var/lib/apt/lists/*;     fi # buildkit",
+     "comment": "buildkit.dockerfile.v0"
+    },
+    {
+     "created": "2026-10-30T11:02:57Z",
+     "created_by": "ENV PATH=/opt/codeql:/usr/local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+     "comment": "buildkit.dockerfile.v0",
+     "empty_layer": true
+    },
+    {
+     "created": "2026-10-30T11:02:57Z",
+     "created_by": "RUN |1 CODEQL_VERSION= /bin/sh -c groupadd --system --gid 1001 engine     && useradd --system --uid 1001 --gid 1001 --no-create-home --shell /usr/sbin/nologin engine # buildkit",
+     "comment": "buildkit.dockerfile.v0"
+    },
+    {
+     "created": "2026-10-30T13:52:16Z",
+     "created_by": "COPY sandbox-ca.pem /opt/sandbox-ca.pem # buildkit",
+     "comment": "buildkit.dockerfile.v0"
+    },
+    {
+     "created": "2026-10-30T13:52:16Z",
+     "created_by": "ENV PIP_CERT=/opt/sandbox-ca.pem",
+     "comment": "buildkit.dockerfile.v0",
+     "empty_layer": true
+    },
+    {
+     "created": "2026-10-30T13:52:16Z",
+     "created_by": "WORKDIR /opt/exploitability",
+     "comment": "buildkit.dockerfile.v0"
+    },
+    {
+     "created": "2026-10-30T13:52:16Z",
+     "created_by": "COPY requirements.lock ./requirements.lock # buildkit",
+     "comment": "buildkit.dockerfile.v0"
+    },
+    {
+     "created": "2026-10-30T13:52:19Z",
+     "created_by": "RUN |1 CODEQL_VERSION= /bin/sh -c pip install --no-cache-dir --require-hashes -r requirements.lock # buildkit",
+     "comment": "buildkit.dockerfile.v0"
+    },
+    {
+     "created": "2026-10-30T13:58:36Z",
+     "created_by": "COPY engine ./engine # buildkit",
+     "comment": "buildkit.dockerfile.v0"
+    },
+    {
+     "created": "2026-10-30T13:58:36Z",
+     "created_by": "COPY queries ./queries # buildkit",
+     "comment": "buildkit.dockerfile.v0"
+    },
+    {
+     "created": "2026-10-30T13:58:36Z",
+     "created_by": "COPY rules ./rules # buildkit",
+     "comment": "buildkit.dockerfile.v0"
+    },
+    {
+     "created": "2026-10-30T13:58:36Z",
+     "created_by": "ENV PYTHONPATH=/opt/exploitability",
+     "comment": "buildkit.dockerfile.v0",
+     "empty_layer": true
+    },
+    {
+     "created": "2026-10-30T13:58:36Z",
+     "created_by": "USER 1001:1001",
+     "comment": "buildkit.dockerfile.v0",
+     "empty_layer": true
+    },
+    {
+     "created": "2026-10-30T13:58:36Z",
+     "created_by": "ENTRYPOINT [\"python3\" \"-P\" \"-m\" \"engine\"]",
+     "comment": "buildkit.dockerfile.v0",
+     "empty_layer": true
+    }
+   ],
+   "os": "linux",
+   "rootfs": {
+    "type": "layers",
+    "diff_ids": [
+     "sha256:a5d6d345f6afa08d7c31272055746d60a838b290bfcc82c0a23e8e984d61a933",
+     "sha256:b9baa14e993c683240d519adebb39657df4d2b973dc2f3fee23cd51367806e2b",
+     "sha256:1217eb836a36d0c4be6a310113a777ecb9d7e9c24197a407665c8884cc5369a4",
+     "sha256:3929d22d8aa43d69f436bbc47ef472db875440b850dbc4e80dd272a3adf673d2",
+     "sha256:5f70bf18a086007016e948b04aed3b82103a36bea41755b6cddfaf10ace3c6ef",
+     "sha256:3a60fb135db968cb90e32594360e867943c0fca5ed6b27d107b6c1574c7f301c",
+     "sha256:5789d5d858ebbd6ed535fc5006287173a0a5f680e2d809145f0de2feb7fcd92b",
+     "sha256:78b310a402571e0821d21877abbe2766653890ba76bde7d2bd34b5e686193a0c",
+     "sha256:fc0c45198f8170aa8503fd11adef3205d06d70dfdaab139c8b60b2d3c07ba4ed",
+     "sha256:fe07f24b2b563d91f32c1cc32e03ef3072b3910c33c71409faa67020224e4372",
+     "sha256:c5c7e5e4c909aa8dad308844353ae77aa7d52963ca6318372702ba57eba39e43",
+     "sha256:afcbb43373e64525d8c027f80495230227a99f73100425bf9e42d2f002ff57b3",
+     "sha256:e2add39240cc2d81eb03193f8e912c5bb0682a2f622ad83fdbf4921b5bf267cc"
+    ]
+   },
+   "config": {
+    "Entrypoint": [
+     "python3",
+     "-P",
+     "-m",
+     "engine"
+    ],
+    "Env": [
+     "PATH=/opt/codeql:/usr/local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+     "LANG=C.UTF-8",
+     "GPG_KEY=0000000000000000000000000000000000000000",
+     "PYTHON_VERSION=3.13.18",
+     "PYTHON_SHA256=abb0102e6d4ae027509bcb82327d9dd85515b44a3ba8ad538cfc5e9847029f68",
+     "PIP_CERT=/opt/sandbox-ca.pem",
+     "PYTHONPATH=/opt/exploitability"
+    ],
+    "User": "1001:1001",
+    "WorkingDir": "/opt/exploitability"
+   }
+  }
+ },
+ "Results": [
+  {
+   "Target": "sawone-local:test (debian 13.7)",
+   "Class": "os-pkgs",
+   "Type": "debian",
+   "Vulnerabilities": [
+    {
+     "VulnerabilityID": "CVE-2011-3374",
+     "PkgID": "apt@3.0.3",
+     "PkgName": "apt",
+     "PkgIdentifier": {
+      "PURL": "pkg:deb/debian/apt@3.0.3?arch=amd64&distro=debian-13.7",
+      "UID": "83eef548840b71e9"
+     },
+     "InstalledVersion": "3.0.3",
+     "Status": "affected",
+     "Layer": {
+      "Digest": "sha256:6fc242d221a673263eabd14a9ad9584d3177c96e5cb504c891497338e2f912f5",
+      "DiffID": "sha256:a5d6d345f6afa08d7c31272055746d60a838b290bfcc82c0a23e8e984d61a933"
+     },
+     "SeveritySource": "debian",
+     "PrimaryURL": "https://avd.aquasec.com/nvd/cve-2011-3374",
+     "DataSource": {
+      "ID": "debian",
+      "Name": "Debian Security Tracker",
+      "URL": "https://salsa.debian.org/security-tracker-team/security-tracker"
+     },
+     "Title": "It was found that apt-key in apt, all versions, do not correctly valid ...",
+     "Description": "It was found that apt-key in apt, all versions, do not correctly validate gpg keys with the master keyring, leading to a potential man-in-the-middle attack.",
+     "Severity": "LOW",
+     "CweIDs": [
+      "CWE-347"
+     ],
+     "VendorSeverity": {
+      "debian": 1,
+      "nvd": 1
+     },
+     "CVSS": {
+      "nvd": {
+       "V2Vector": "AV:N/AC:M/Au:N/C:N/I:P/A:N",
+       "V3Vector": "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:N/I:L/A:N",
+       "V2Score": 4.3,
+       "V3Score": 3.7
+      }
+     },
+     "References": [
+      "https://access.redhat.com/security/cve/cve-2011-3374",
+      "https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=642480",
+      "https://people.canonical.com/~ubuntu-security/cve/2011/CVE-2011-3374.html",
+      "https://seclists.org/fulldisclosure/2011/Sep/221",
+      "https://security-tracker.debian.org/tracker/CVE-2011-3374",
+      "https://snyk.io/vuln/SNYK-LINUX-APT-116518",
+      "https://ubuntu.com/security/CVE-2011-3374"
+     ],
+     "PublishedDate": "2019-11-26T00:15:11.03Z",
+     "LastModifiedDate": "2024-11-21T01:30:22.61Z"
+    },
+    {
+     "VulnerabilityID": "TEMP-0841856-B18BAF",
+     "PkgID": "bash@5.2.37-2+b10",
+     "PkgName": "bash",
+     "PkgIdentifier": {
+      "PURL": "pkg:deb/debian/bash@5.2.37-2%2Bb10?arch=amd64&distro=debian-13.7",
+      "UID": "6d13a7f206ef29d2"
+     },
+     "InstalledVersion": "5.2.37-2+b10",
+     "Status": "affected",
+     "Layer": {
+      "Digest": "sha256:6fc242d221a673263eabd14a9ad9584d3177c96e5cb504c891497338e2f912f5",
+      "DiffID": "sha256:a5d6d345f6afa08d7c31272055746d60a838b290bfcc82c0a23e8e984d61a933"
+     },
+     "SeveritySource": "debian",
+     "PrimaryURL": "https://security-tracker.debian.org/tracker/TEMP-0841856-B18BAF",
+     "DataSource": {
+      "ID": "debian",
+      "Name": "Debian Security Tracker",
+      "URL": "https://salsa.debian.org/security-tracker-team/security-tracker"
+     },
+     "Title": "[Privilege escalation possible to other user than root]",
+     "Severity": "LOW",
+     "VendorSeverity": {
+      "debian": 1
+     }
+    },
+    {
+     "VulnerabilityID": "CVE-2026-76642",
+     "PkgID": "bsdutils@1:2.41.5-0+deb13u1",
+     "PkgName": "bsdutils",
+     "PkgIdentifier": {
+      "PURL": "pkg:deb/debian/bsdutils@2.41.5-0%2Bdeb13u1?arch=amd64&distro=debian-13.7&epoch=1",
+      "UID": "67100c5ae0bf4254"
+     },
+     "InstalledVersion": "1:2.41.5-0+deb13u1",
+     "Status": "affected",
+     "Layer": {
+      "Digest": "sha256:6fc242d221a673263eabd14a9ad9584d3177c96e5cb504c891497338e2f912f5",
+      "DiffID": "sha256:a5d6d345f6afa08d7c31272055746d60a838b290bfcc82c0a23e8e984d61a933"
+     },
+     "PrimaryURL": "https://avd.aquasec.com/nvd/cve-2026-76642",
+     "DataSource": {
+      "ID": "debian",
+      "Name": "Debian Security Tracker",
+      "URL": "https://salsa.debian.org/security-tracker-team/security-tracker"
+     },
+     "Title": "util-linux: util-linux: failed external mount helper still runs privileged X-mount post-hooks",
+     "Description": "util-linux versions through 2.41.5 and 2.42.2 fail to check mount helper exit status before running post-mount hooks, allowing unprivileged users to execute privileged operations on pre-existing filesystems. Attackers can exploit X-mount.idmap or X-mount.owner hooks to clone filesystems with inherited suid bits or modify target inode permissions after a helper fails, achieving privilege escalation.",
+     "Severity": "HIGH",
+     "CweIDs": [
+      "CWE-390"
+     ],
+     "VendorSeverity": {
+      "azure": 2,
+      "photon": 3,
+      "redhat": 3
+     },
+     "CVSS": {
+      "redhat": {
+       "V3Vector": "CVSS:3.1/AV:L/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:H",
+       "V3Score": 7.8
+      }
+     },
+     "References": [
+      "https://access.redhat.com/security/cve/CVE-2026-76642",
+      "https://github.com/util-linux/util-linux",
+      "https://github.com/util-linux/util-linux/blob/v2.42.2/libmount/src/context_mount.c#L476",
+      "https://github.com/util-linux/util-linux/blob/v2.42.2/libmount/src/context_mount.c#L892",
+      "https://github.com/util-linux/util-linux/commit/1d14676ea70003e9f5b2a6a76af0cadb1190411a",
+      "https://github.com/util-linux/util-linux/commit/a15c00a9e545aa8b9cf6ec0f888ff6c7b3eaeedc",
+      "https://github.com/util-linux/util-linux/commit/f57cea130839c0af8dc0525274267ae4cfd66bbf",
+      "https://github.com/util-linux/util-linux/security/advisories/GHSA-m25x-3hj9-m26f",
+      "https://nvd.nist.gov/vuln/detail/CVE-2026-76642",
+      "https://www.cve.org/CVERecord?id=CVE-2026-76642",
+      "https://www.vulncheck.com/advisories/util-linux-libmount-privilege-escalation-via-failed-mount-helper"
+     ],
+     "PublishedDate": "2026-09-03T13:06:08.44Z",
+     "LastModifiedDate": "2026-09-24T20:28:01.78Z"
+    },
+    {
+     "VulnerabilityID": "CVE-2026-78408",
+     "PkgID": "bsdutils@1:2.41.5-0+deb13u1",
+     "PkgName": "bsdutils",
+     "PkgIdentifier": {
+      "PURL": "pkg:deb/debian/bsdutils@2.41.5-0%2Bdeb13u1?arch=amd64&distro=debian-13.7&epoch=1",
+      "UID": "67100c5ae0bf4254"
+     },
+     "InstalledVersion": "1:2.41.5-0+deb13u1",
+     "Status": "affected",
+     "Layer": {
+      "Digest": "sha256:6fc242d221a673263eabd14a9ad9584d3177c96e5cb504c891497338e2f912f5",
+      "DiffID": "sha256:a5d6d345f6afa08d7c31272055746d60a838b290bfcc82c0a23e8e984d61a933"
+     },
+     "PrimaryURL": "https://avd.aquasec.com/nvd/cve-2026-78408",
+     "DataSource": {
+      "ID": "debian",
+      "Name": "Debian Security Tracker",
+      "URL": "https://salsa.debian.org/security-tracker-team/security-tracker"
+     },
+     "Title": "util-linux: util-linux: nsenter --join-cgroup leaks root cgroup migration authority",
+     "Description": "The nsenter --join-cgroup option opens the target cgroup.procs file as root and leaves that file descriptor open across later namespace and credential changes and across execve(). Because the kernel checks later cgroup migrations using the credentials from the original open, a program run in an attacker-controlled target can inherit root's ability to move host processes between cgroups. After a privileged operator uses --join-cgroup against that target, an unprivileged user can migrate and terminate unrelated root processes.",
+     "Severity": "HIGH",
+     "CweIDs": [
+      "CWE-775"
+     ],
+     "VendorSeverity": {
+      "azure": 3,
+      "redhat": 3
+     },
+     "CVSS": {
+      "redhat": {
+       "V3Vector": "CVSS:3.1/AV:L/AC:L/PR:L/UI:R/S:C/C:N/I:H/A:H",
+       "V3Score": 7.9
+      }
+     },
+     "References": [
+      "http://www.openwall.com/lists/oss-security/2026/09/05/2",
+      "https://access.redhat.com/errata/RHSA-2026:63162",
+      "https://access.redhat.com/security/cve/CVE-2026-78408",
+      "https://bugzilla.redhat.com/show_bug.cgi?id=2522497",
+      "https://github.com/util-linux/util-linux/security/advisories/GHSA-55fx-f4gg-cfhj",
+      "https://nvd.nist.gov/vuln/detail/CVE-2026-78408",
+      "https://www.cve.org/CVERecord?id=CVE-2026-78408"
+     ],
+     "PublishedDate": "2026-09-02T16:17:23.687Z",
+     "LastModifiedDate": "2026-10-21T18:17:28.793Z"
+    },
+    {
+     "VulnerabilityID": "CVE-2026-78409",
+     "PkgID": "bsdutils@1:2.41.5-0+deb13u1",
+     "PkgName": "bsdutils",
+     "PkgIdentifier": {
+      "PURL": "pkg:deb/debian/bsdutils@2.41.5-0%2Bdeb13u1?arch=amd64&distro=debian-13.7&epoch=1",
+      "UID": "67100c5ae0bf4254"
+     },
+     "InstalledVersion": "1:2.41.5-0+deb13u1",
+     "Status": "affected",
+     "Layer": {
+      "Digest": "sha256:6fc242d221a673263eabd14a9ad9584d3177c96e5cb504c891497338e2f912f5",
+      "DiffID": "sha256:a5d6d345f6afa08d7c31272055746d60a838b290bfcc82c0a23e8e984d61a933"
+     },
+     "PrimaryURL": "https://avd.aquasec.com/nvd/cve-2026-78409",
+     "DataSource": {
+      "ID": "debian",
+      "Name": "Debian Security Tracker",
+      "URL": "https://salsa.debian.org/security-tracker-team/security-tracker"
+     },
+     "Title": "util-linux: util-linux: X-mount.subdir detached-tree resolution can escape via intermediate symlinks",
+     "Description": "The X-mount.subdir option uses a detached-tree fast path on Linux 6.15 and later and passes the configured subdirectory to open_tree() with AT_SYMLINK_NOFOLLOW. That flag does not stop intermediate symlink traversal or keep resolution inside the newly mounted filesystem. A local unprivileged user with an fstab-authorized X-mount.subdir entry can attach a host path at the intended mountpoint.",
+     "Severity": "HIGH",
+     "CweIDs": [
+      "CWE-59"
+     ],
+     "VendorSeverity": {
+      "redhat": 3
+     },
+     "CVSS": {
+      "redhat": {
+       "V3Vector": "CVSS:3.1/AV:L/AC:H/PR:L/UI:N/S:U/C:H/I:H/A:H",
+       "V3Score": 7
+      }
+     },
+     "References": [
+      "https://access.redhat.com/errata/RHSA-2026:63162",
+      "https://access.redhat.com/security/cve/CVE-2026-78409",
+      "https://bugzilla.redhat.com/show_bug.cgi?id=2522607",
+      "https://github.com/util-linux/util-linux/security/advisories/GHSA-8f2p-47x3-43mv",
+      "https://nvd.nist.gov/vuln/detail/CVE-2026-78409",
+      "https://www.cve.org/CVERecord?id=CVE-2026-78409"
+     ],
+     "PublishedDate": "2026-09-02T16:17:23.833Z",
+     "LastModifiedDate": "2026-10-21T18:17:28.967Z"
+    }
+   ]
+  },
+  {
+   "Target": "Python",
+   "Class": "lang-pkgs",
+   "Type": "python-pkg",
+   "Vulnerabilities": [
+    {
+     "VulnerabilityID": "CVE-2026-114613",
+     "PkgID": "msgpack@1.1.2",
+     "PkgName": "msgpack",
+     "PkgIdentifier": {
+      "PURL": "pkg:pypi/msgpack@1.1.2",
+      "UID": "9d4de19fc7cec275",
+      "BOMRef": "pkg:pypi/msgpack@1.1.2"
+     },
+     "InstalledVersion": "1.1.2",
+     "FixedVersion": "1.2.3",
+     "Status": "fixed",
+     "Layer": {
+      "Digest": "sha256:7d824d9f832184c4084576664b622717cb0eb579b504f2079d3b4ac36454761f",
+      "DiffID": "sha256:1217eb836a36d0c4be6a310113a777ecb9d7e9c24197a407665c8884cc5369a4"
+     },
+     "SeveritySource": "ghsa",
+     "PrimaryURL": "https://avd.aquasec.com/nvd/cve-2026-114613",
+     "DataSource": {
+      "ID": "ghsa",
+      "Name": "GitHub Security Advisory pip",
+      "URL": "https://github.com/advisories?query=type%3Areviewed+ecosystem%3Apip"
+     },
+     "Title": "msgpack: msgpack: Denial of Service via memory leak during map deserialization",
+     "Description": "MessagePack is the serializer implementation for Python msgpack.org. Prior to 1.2.3, the msgpack-python C extension (msgpack._cmsgpack) leaks a decoded map value when deserialization rejects a key with strict_map_key=True (the default). Repeated malformed inputs can cause unbounded process memory growth and denial of service in applications that deserialize attacker-controlled MessagePack data. Both unpackb() and the streaming Unpacker API are affected. The pure-Python fallback does not exhibit this leak in the reported tests. This issue is fixed in version 1.2.3.",
+     "Severity": "HIGH",
+     "CweIDs": [
+      "CWE-401"
+     ],
+     "VendorSeverity": {
+      "ghsa": 3,
+      "redhat": 3
+     },
+     "CVSS": {
+      "ghsa": {
+       "V3Vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H",
+       "V3Score": 7.5
+      },
+      "redhat": {
+       "V3Vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H",
+       "V3Score": 7.5
+      }
+     },
+     "References": [
+      "https://access.redhat.com/security/cve/CVE-2026-114613",
+      "https://advisory.echohq.com/cve/CVE-2026-114613",
+      "https://github.com/msgpack/msgpack-python",
+      "https://github.com/msgpack/msgpack-python/commit/620b0eb4c89cd72d4098564537624d9dbb2ce141",
+      "https://github.com/msgpack/msgpack-python/releases/tag/v1.2.3",
+      "https://github.com/msgpack/msgpack-python/security/advisories/GHSA-j586-36cw-2gc2",
+      "https://nvd.nist.gov/vuln/detail/CVE-2026-114613",
+      "https://www.cve.org/CVERecord?id=CVE-2026-114613"
+     ],
+     "PublishedDate": "2026-10-22T19:17:37.733Z",
+     "LastModifiedDate": "2026-10-23T21:17:21.823Z"
+    },
+    {
+     "VulnerabilityID": "GHSA-6v7p-g79w-8964",
+     "PkgID": "msgpack@1.1.2",
+     "PkgName": "msgpack",
+     "PkgIdentifier": {
+      "PURL": "pkg:pypi/msgpack@1.1.2",
+      "UID": "9d4de19fc7cec275",
+      "BOMRef": "pkg:pypi/msgpack@1.1.2"
+     },
+     "InstalledVersion": "1.1.2",
+     "FixedVersion": "1.2.1",
+     "Status": "fixed",
+     "Layer": {
+      "Digest": "sha256:7d824d9f832184c4084576664b622717cb0eb579b504f2079d3b4ac36454761f",
+      "DiffID": "sha256:1217eb836a36d0c4be6a310113a777ecb9d7e9c24197a407665c8884cc5369a4"
+     },
+     "SeveritySource": "ghsa",
+     "PrimaryURL": "https://github.com/advisories/GHSA-6v7p-g79w-8964",
+     "DataSource": {
+      "ID": "ghsa",
+      "Name": "GitHub Security Advisory pip",
+      "URL": "https://github.com/advisories?query=type%3Areviewed+ecosystem%3Apip"
+     },
+     "Title": "MessagePack for Python: Out-of-bounds read / crash on Unpacker reuse after a caught error",
+     "Description": "### Impact\n\nIf the Unpacker is used repeatedly after an error occurs, the process may crash with a SEGV.\n\nIf the Unpacker is used repeatedly to unpack untrusted input from external sources, it may be vulnerable to a DoS attack.\n\n### Patches\n\nv1.2.1\n\n### Workarounds\n\nUsers should create a new Unpacker instead of reusing the same Unpacker after an error occurs.\n\nApplying the above patch can prevent SEGV, but reusing the Streaming Unpacker after it has encountered an error will not yield correct data. If an error occurs during Streaming Unpacking, the Stream and Streaming Unpacker should be discarded.\n\nTherefore, this is not just a workaround but the correct solution. The above patch only prevents crashes from incorrect usage.",
+     "Severity": "HIGH",
+     "VendorSeverity": {
+      "ghsa": 3
+     },
+     "CVSS": {
+      "ghsa": {
+       "V3Vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H",
+       "V3Score": 7.5
+      }
+     },
+     "References": [
+      "https://advisory.echohq.com/cve/GHSA-6v7p-g79w-8964",
+      "https://github.com/advisories/GHSA-6v7p-g79w-8964",
+      "https://github.com/msgpack/msgpack-python",
+      "https://github.com/msgpack/msgpack-python/commit/2c56ddb5d0025ed481d962c0f5d62d19dec7476d",
+      "https://github.com/msgpack/msgpack-python/releases/tag/v1.2.1",
+      "https://github.com/msgpack/msgpack-python/security/advisories/GHSA-6v7p-g79w-8964"
+     ],
+     "PublishedDate": "2026-06-19T21:42:55Z",
+     "LastModifiedDate": "2026-06-19T21:42:55Z"
+    },
+    {
+     "VulnerabilityID": "CVE-2025-47273",
+     "PkgID": "setuptools@70.3.0",
+     "PkgName": "setuptools",
+     "PkgIdentifier": {
+      "PURL": "pkg:pypi/setuptools@70.3.0",
+      "UID": "b545a270507e387c",
+      "BOMRef": "pkg:pypi/setuptools@70.3.0"
+     },
+     "InstalledVersion": "70.3.0",
+     "FixedVersion": "78.1.1",
+     "Status": "fixed",
+     "Layer": {
+      "Digest": "sha256:7d824d9f832184c4084576664b622717cb0eb579b504f2079d3b4ac36454761f",
+      "DiffID": "sha256:1217eb836a36d0c4be6a310113a777ecb9d7e9c24197a407665c8884cc5369a4"
+     },
+     "SeveritySource": "ghsa",
+     "PrimaryURL": "https://avd.aquasec.com/nvd/cve-2025-47273",
+     "DataSource": {
+      "ID": "ghsa",
+      "Name": "GitHub Security Advisory pip",
+      "URL": "https://github.com/advisories?query=type%3Areviewed+ecosystem%3Apip"
+     },
+     "Title": "setuptools: Path Traversal Vulnerability in setuptools PackageIndex",
+     "Description": "setuptools is a package that allows users to download, build, install, upgrade, and uninstall Python packages. A path traversal vulnerability in `PackageIndex` is present in setuptools prior to version 78.1.1. An attacker would be allowed to write files to arbitrary locations on the filesystem with the permissions of the process running the Python code, which could escalate to remote code execution depending on the context. Version 78.1.1 fixes the issue.",
+     "Severity": "HIGH",
+     "CweIDs": [
+      "CWE-22"
+     ],
+     "VendorSeverity": {
+      "alma": 2,
+      "amazon": 3,
+      "azure": 3,
+      "bitnami": 3,
+      "ghsa": 3,
+      "nvd": 3,
+      "oracle-oval": 2,
+      "photon": 3,
+      "redhat": 2,
+      "rocky": 2,
+      "ubuntu": 2
+     },
+     "CVSS": {
+      "bitnami": {
+       "V40Vector": "CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:N/VC:N/VI:H/VA:N/SC:N/SI:N/SA:N/E:P",
+       "V40Score": 7.7
+      },
+      "ghsa": {
+       "V40Vector": "CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:N/VC:N/VI:H/VA:N/SC:N/SI:N/SA:N/E:P",
+       "V40Score": 7.7
+      },
+      "nvd": {
+       "V3Vector": "CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:H",
+       "V3Score": 8.8
+      },
+      "redhat": {
+       "V3Vector": "CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:N/I:H/A:L",
+       "V3Score": 7.1
+      }
+     },
+     "References": [
+      "https://access.redhat.com/errata/RHSA-2025:10407",
+      "https://access.redhat.com/errata/RHSA-2025:13578",
+      "https://access.redhat.com/security/cve/CVE-2025-47273",
+      "https://advisory.echohq.com/cve/CVE-2025-47273",
+      "https://bugzilla.redhat.com/2366982",
+      "https://bugzilla.redhat.com/show_bug.cgi?id=2366982",
+      "https://creativecommons.org/licenses/by/4.0/",
+      "https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2025-47273",
+      "https://errata.almalinux.org/9/ALSA-2025-13578.html",
+      "https://errata.rockylinux.org/RLSA-2025:10407",
+      "https://github.com/pypa/advisory-database/tree/main/vulns/setuptools/PYSEC-2025-49.yaml",
+      "https://github.com/pypa/setuptools",
+      "https://github.com/pypa/setuptools/blob/6ead555c5fb29bc57fe6105b1bffc163f56fd558/setuptools/package_index.py#L810C1-L825C88",
+      "https://github.com/pypa/setuptools/commit/250a6d17978f9f6ac3ac887091f2d32886fbbb0b",
+      "https://github.com/pypa/setuptools/issues/4946",
+      "https://github.com/pypa/setuptools/security/advisories/GHSA-5rjg-fvgr-3xxf",
+      "https://linux.oracle.com/cve/CVE-2025-47273.html",
+      "https://linux.oracle.com/errata/ELSA-2025-9940.html",
+      "https://lists.debian.org/debian-lts-announce/2025/05/msg00035.html",
+      "https://nvd.nist.gov/vuln/detail/CVE-2025-47273",
+      "https://ubuntu.com/security/notices/USN-7544-1",
+      "https://ubuntu.com/security/notices/USN-8010-1",
+      "https://www.cve.org/CVERecord?id=CVE-2025-47273"
+     ],
+     "PublishedDate": "2025-05-17T16:15:19.11Z",
+     "LastModifiedDate": "2026-06-17T09:27:38.827Z"
+    },
+    {
+     "VulnerabilityID": "CVE-2026-59890",
+     "PkgID": "setuptools@70.3.0",
+     "PkgName": "setuptools",
+     "PkgIdentifier": {
+      "PURL": "pkg:pypi/setuptools@70.3.0",
+      "UID": "b545a270507e387c",
+      "BOMRef": "pkg:pypi/setuptools@70.3.0"
+     },
+     "InstalledVersion": "70.3.0",
+     "FixedVersion": "83.0.0",
+     "Status": "fixed",
+     "Layer": {
+      "Digest": "sha256:7d824d9f832184c4084576664b622717cb0eb579b504f2079d3b4ac36454761f",
+      "DiffID": "sha256:1217eb836a36d0c4be6a310113a777ecb9d7e9c24197a407665c8884cc5369a4"
+     },
+     "SeveritySource": "ghsa",
+     "PrimaryURL": "https://avd.aquasec.com/nvd/cve-2026-59890",
+     "DataSource": {
+      "ID": "ghsa",
+      "Name": "GitHub Security Advisory pip",
+      "URL": "https://github.com/advisories?query=type%3Areviewed+ecosystem%3Apip"
+     },
+     "Title": "setuptools: setuptools: MANIFEST.in exclusion bypass in sdist via Unicode normalization collision (NFC/NFD)",
+     "Description": "setuptools is a package that allows users to download, build, install, upgrade, and uninstall Python packages. Prior to 83.0.0, FileList applied MANIFEST.in exclude, global-exclude, recursive-exclude, and prune directives by matching compiled glob patterns against on-disk file names without Unicode normalization, so on macOS APFS or HFS+ an NFD file name could bypass an NFC exclusion rule and be packed into a source distribution. This issue is fixed in version 83.0.0.",
+     "Severity": "MEDIUM",
+     "CweIDs": [
+      "CWE-176",
+      "CWE-697"
+     ],
+     "VendorSeverity": {
+      "azure": 2,
+      "bitnami": 2,
+      "ghsa": 2,
+      "redhat": 2
+     },
+     "CVSS": {
+      "bitnami": {
+       "V3Vector": "CVSS:3.1/AV:L/AC:L/PR:N/UI:R/S:U/C:H/I:L/A:N",
+       "V3Score": 6.1
+      },
+      "ghsa": {
+       "V3Vector": "CVSS:3.1/AV:L/AC:L/PR:N/UI:R/S:U/C:H/I:L/A:N",
+       "V3Score": 6.1
+      },
+      "redhat": {
+       "V3Vector": "CVSS:3.1/AV:L/AC:L/PR:N/UI:R/S:U/C:H/I:L/A:N",
+       "V3Score": 6.1
+      }
+     },
+     "References": [
+      "https://access.redhat.com/security/cve/CVE-2026-59890",
+      "https://advisory.echohq.com/cve/CVE-2026-59890",
+      "https://github.com/pypa/advisory-database/tree/main/vulns/setuptools/PYSEC-2026-3447.yaml",
+      "https://github.com/pypa/setuptools",
+      "https://github.com/pypa/setuptools/commit/dd9f436a36486b4cb8a4c70a2321548b0be09b8f",
+      "https://github.com/pypa/setuptools/releases/tag/v83.0.0",
+      "https://github.com/pypa/setuptools/security/advisories/GHSA-h35f-9h28-mq5c",
+      "https://nvd.nist.gov/vuln/detail/CVE-2026-59890",
+      "https://www.cve.org/CVERecord?id=CVE-2026-59890"
+     ],
+     "PublishedDate": "2026-07-08T17:17:27.02Z",
+     "LastModifiedDate": "2026-10-25T17:10:00.197Z"
+    },
+    {
+     "VulnerabilityID": "GHSA-xmj3-9gf7-h52w",
+     "PkgID": "setuptools@70.3.0",
+     "PkgName": "setuptools",
+     "PkgIdentifier": {
+      "PURL": "pkg:pypi/setuptools@70.3.0",
+      "UID": "b545a270507e387c",
+      "BOMRef": "pkg:pypi/setuptools@70.3.0"
+     },
+     "InstalledVersion": "70.3.0",
+     "FixedVersion": "84.1.0",
+     "Status": "fixed",
+     "Layer": {
+      "Digest": "sha256:7d824d9f832184c4084576664b622717cb0eb579b504f2079d3b4ac36454761f",
+      "DiffID": "sha256:1217eb836a36d0c4be6a310113a777ecb9d7e9c24197a407665c8884cc5369a4"
+     },
+     "SeveritySource": "ghsa",
+     "PrimaryURL": "https://github.com/advisories/GHSA-xmj3-9gf7-h52w",
+     "DataSource": {
+      "ID": "ghsa",
+      "Name": "GitHub Security Advisory pip",
+      "URL": "https://github.com/advisories?query=type%3Areviewed+ecosystem%3Apip"
+     },
+     "Title": "setuptools: Windows path escape via namespace_packages.txt during legacy wheel installation  Description",
+     "Description": "### Summary\n\nOn Windows, attacker-controlled content in a wheel's\n`.dist-info/namespace_packages.txt` can cause setuptools' legacy wheel\ninstallation path to create an `__init__.py` outside the requested\n`destination_eggdir`.\n\nThe attacker can influence the destination path, but not the contents of\nthe created file.\n\n### Details\n\nTested setuptools commit:\n\n`6ead555c5fb29bc57fe6105b1bffc163f56fd558`\n\nRelevant source:\n\n`setuptools/wheel.py`\n\nSHA-256:\n\n`359b7e0d5dd8c3135653abe08a8ed5dc0352eadfd7df22cb5e2b5303b7c3cafd`\n\nThe relevant call path is:\n\n`Wheel(wheel_path).install_as_egg(destination)`\n\u2192 `_install_as_egg`\n\u2192 `_convert_metadata`\n\u2192 `_fix_namespace_packages`\n\nA wheel can provide attacker-controlled content in:\n\n`<distribution>.dist-info/namespace_packages.txt`\n\nThe namespace value is eventually used approximately as:\n\n```python\nmod_dir = os.path.join(destination_eggdir, *mod.split('.'))\nmod_init = os.path.join(mod_dir, '__init__.py')\n\nIf mod is a Windows drive-qualified absolute path containing no dots,\nmod.split('.') preserves it as a single component.\nOn Windows, os.path.join(destination_eggdir, absolute_component) discards\nthe original base directory and resolves to the attacker-supplied absolute\npath.\nThe existing wheel filename and ZIP traversal checks do not validate this\nmetadata value before it is subsequently interpreted as a filesystem path.\n\n```markdown\n### PoC\n\nThe reproduction was performed entirely inside a disposable temporary\ndirectory.\n\nLayout:\n\n```text\nsandbox/\n    destination/\n    outside/\n    input/\n    canary.txt\n```\n\nA synthetic wheel was created containing:\n\n`demo_pkg-1.0.dist-info/namespace_packages.txt`\n\nwhose content was the absolute path of:\n\n`sandbox\\outside`\n\nThe real acquired setuptools implementation was then invoked:\n\n```python\nsetuptools.wheel.Wheel(synthetic_wheel).install_as_egg(\n    sandbox_destination\n)\n```\n\nThe operation completed without exception.\n\nExpected metadata was created under:\n\n`sandbox\\destination\\EGG-INFO`\n\nbut setuptools also created:\n\n`sandbox\\outside\\__init__.py`\n\nThe file did not exist before execution.\n\nIts contents were:\n\n```python\n__import__('pkg_resources').declare_namespace(__name__)\n```\n\nThe unrelated canary remained byte-identical.\n\nThe sandbox was deleted after recording the evidence.\n```\n\n\n### Impact\n\nA crafted wheel can cause setuptools to create a fixed-content\n`__init__.py` outside the intended installation directory at a\nfilesystem path influenced by the wheel, with the permissions of the\nprocess performing the installation.\n\nThe demonstrated reproduction required the target parent directory to\nalready exist.",
+     "Severity": "LOW",
+     "VendorSeverity": {
+      "ghsa": 1
+     },
+     "CVSS": {
+      "ghsa": {
+       "V40Vector": "CVSS:4.0/AV:L/AC:H/AT:P/PR:L/UI:A/VC:N/VI:L/VA:L/SC:N/SI:N/SA:N",
+       "V40Score": 1
+      }
+     },
+     "References": [
+      "https://advisory.echohq.com/cve/GHSA-xmj3-9gf7-h52w",
+      "https://github.com/advisories/GHSA-xmj3-9gf7-h52w",
+      "https://github.com/pypa/setuptools",
+      "https://github.com/pypa/setuptools/commit/6d07b8d17890dda58d944ac51e58f54af92d52af",
+      "https://github.com/pypa/setuptools/pull/5329",
+      "https://github.com/pypa/setuptools/releases/tag/v84.1.0",
+      "https://github.com/pypa/setuptools/security/advisories/GHSA-xmj3-9gf7-h52w"
+     ],
+     "PublishedDate": "2026-10-23T21:44:11Z",
+     "LastModifiedDate": "2026-10-23T21:44:11Z"
+    },
+    {
+     "VulnerabilityID": "CVE-2026-97687",
+     "PkgID": "urllib3@2.7.0",
+     "PkgName": "urllib3",
+     "PkgIdentifier": {
+      "PURL": "pkg:pypi/urllib3@2.7.0",
+      "UID": "5cc1fb32a61c5b3d",
+      "BOMRef": "pkg:pypi/urllib3@2.7.0"
+     },
+     "InstalledVersion": "2.7.0",
+     "FixedVersion": "2.8.0",
+     "Status": "fixed",
+     "Layer": {
+      "Digest": "sha256:7d824d9f832184c4084576664b622717cb0eb579b504f2079d3b4ac36454761f",
+      "DiffID": "sha256:1217eb836a36d0c4be6a310113a777ecb9d7e9c24197a407665c8884cc5369a4"
+     },
+     "SeveritySource": "ghsa",
+     "PrimaryURL": "https://avd.aquasec.com/nvd/cve-2026-97687",
+     "DataSource": {
+      "ID": "ghsa",
+      "Name": "GitHub Security Advisory pip",
+      "URL": "https://github.com/advisories?query=type%3Areviewed+ecosystem%3Apip"
+     },
+     "Title": "urllib3: urllib3: Traffic interception via HTTPS proxy TLS configuration override",
+     "Description": "urllib3 is an HTTP client library for Python. From 1.26.0 until 2.8.0, the proxy_ssl_context, proxy_assert_hostname, proxy_assert_fingerprint, ssl_context, cert_reqs, verify_mode, use_forwarding_for_https=True, and CERT_NONE configuration paths fail to remain separated because target-server TLS settings are incorrectly applied to the HTTPS proxy connection. The trigger is that an application uses an HTTPS proxy and configures target-server TLS settings that must remain separate from the proxy TLS handshake, including HTTPS forwarding with target-specific identity or credentials. Applying cert_reqs=CERT_NONE can overwrite proxy_ssl_context.verify_mode in place, and the mutation persists so later connections reusing the same context may connect to the HTTPS proxy without certificate verification. The attack mechanism is that an attacker intercepts and impersonates the HTTPS proxy after the effective proxy policy accepts the attacker's certificate. The impact is that the attacker can observe or modify forwarded traffic or receive a target TLS client certificate, while CONNECT tunneling still preserves the separate end-to-end target TLS connection. This issue is fixed in version 2.8.0.",
+     "Severity": "HIGH",
+     "CweIDs": [
+      "CWE-295",
+      "CWE-440"
+     ],
+     "VendorSeverity": {
+      "alma": 3,
+      "ghsa": 3,
+      "nvd": 3,
+      "oracle-oval": 3,
+      "redhat": 3,
+      "rocky": 3,
+      "ubuntu": 2
+     },
+     "CVSS": {
+      "ghsa": {
+       "V40Vector": "CVSS:4.0/AV:N/AC:L/AT:P/PR:N/UI:P/VC:H/VI:H/VA:N/SC:N/SI:N/SA:N",
+       "V40Score": 7.6
+      },
+      "nvd": {
+       "V3Vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:H/I:H/A:N",
+       "V3Score": 8.1
+      },
+      "redhat": {
+       "V3Vector": "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:H/I:H/A:N",
+       "V3Score": 7.4
+      }
+     },
+     "References": [
+      "https://access.redhat.com/errata/RHSA-2026:85929",
+      "https://access.redhat.com/errata/RHSA-2026:90494",
+      "https://access.redhat.com/security/cve/CVE-2026-97687",
+      "https://advisory.echohq.com/cve/CVE-2026-97687",
+      "https://bugzilla.redhat.com/2543245",
+      "https://bugzilla.redhat.com/2543255",
+      "https://bugzilla.redhat.com/show_bug.cgi?id=2543245",
+      "https://bugzilla.redhat.com/show_bug.cgi?id=2543255",
+      "https://creativecommons.org/licenses/by/4.0/",
+      "https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2026-97687",
+      "https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2026-97689",
+      "https://errata.almalinux.org/9/ALSA-2026-90494.html",
+      "https://errata.rockylinux.org/RLSA-2026:85929",
+      "https://github.com/urllib3/urllib3",
+      "https://github.com/urllib3/urllib3/commit/07408cec79d1856d81bb42c74a904a24fdb9e465",
+      "https://github.com/urllib3/urllib3/commit/b6447295fff7b38fdffc67e0df9712d60cef3cc3",
+      "https://github.com/urllib3/urllib3/pull/5093",
+      "https://github.com/urllib3/urllib3/releases/tag/2.8.0",
+      "https://github.com/urllib3/urllib3/security/advisories/GHSA-8988-9cw3-xx77",
+      "https://linux.oracle.com/cve/CVE-2026-97687.html",
+      "https://linux.oracle.com/errata/ELSA-2026-92474.html",
+      "https://nvd.nist.gov/vuln/detail/CVE-2026-97687",
+      "https://ubuntu.com/security/notices/USN-8926-1",
+      "https://www.cve.org/CVERecord?id=CVE-2026-97687"
+     ],
+     "PublishedDate": "2026-09-29T16:17:18.517Z",
+     "LastModifiedDate": "2026-10-13T20:27:23.13Z"
+    },
+    {
+     "VulnerabilityID": "CVE-2026-97689",
+     "PkgID": "urllib3@2.7.0",
+     "PkgName": "urllib3",
+     "PkgIdentifier": {
+      "PURL": "pkg:pypi/urllib3@2.7.0",
+      "UID": "5cc1fb32a61c5b3d",
+      "BOMRef": "pkg:pypi/urllib3@2.7.0"
+     },
+     "InstalledVersion": "2.7.0",
+     "FixedVersion": "2.8.0",
+     "Status": "fixed",
+     "Layer": {
+      "Digest": "sha256:7d824d9f832184c4084576664b622717cb0eb579b504f2079d3b4ac36454761f",
+      "DiffID": "sha256:1217eb836a36d0c4be6a310113a777ecb9d7e9c24197a407665c8884cc5369a4"
+     },
+     "SeveritySource": "ghsa",
+     "PrimaryURL": "https://avd.aquasec.com/nvd/cve-2026-97689",
+     "DataSource": {
+      "ID": "ghsa",
+      "Name": "GitHub Security Advisory pip",
+      "URL": "https://github.com/advisories?query=type%3Areviewed+ecosystem%3Apip"
+     },
+     "Title": "urllib3: urllib3: Denial of Service via unbounded memory allocation in chunk parser",
+     "Description": "urllib3 is an HTTP client library for Python. From 1.10.3 until 2.8.0, the HTTPResponse.read_chunked and HTTPResponse.stream methods can allocate unbounded memory because the streaming chunk parser buffers the chunk-size field until newline or EOF without a length bound. The trigger is that a malicious server returns Transfer-Encoding: chunked followed by a very long run of bytes without a newline. The attack mechanism is that a malicious HTTP server sends a very long unterminated chunk-size line. The impact is that unbounded memory allocation can exhaust the client process. This issue is fixed in version 2.8.0.",
+     "Severity": "HIGH",
+     "CweIDs": [
+      "CWE-770"
+     ],
+     "VendorSeverity": {
+      "alma": 3,
+      "amazon": 3,
+      "azure": 3,
+      "ghsa": 3,
+      "nvd": 3,
+      "oracle-oval": 3,
+      "redhat": 3,
+      "rocky": 3,
+      "ubuntu": 2
+     },
+     "CVSS": {
+      "ghsa": {
+       "V40Vector": "CVSS:4.0/AV:N/AC:L/AT:P/PR:N/UI:N/VC:N/VI:N/VA:H/SC:N/SI:N/SA:H",
+       "V40Score": 8.9
+      },
+      "nvd": {
+       "V3Vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H",
+       "V3Score": 7.5
+      },
+      "redhat": {
+       "V3Vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H",
+       "V3Score": 7.5
+      }
+     },
+     "References": [
+      "https://access.redhat.com/errata/RHSA-2026:85929",
+      "https://access.redhat.com/errata/RHSA-2026:90494",
+      "https://access.redhat.com/security/cve/CVE-2026-97689",
+      "https://advisory.echohq.com/cve/CVE-2026-97689",
+      "https://bugzilla.redhat.com/2543245",
+      "https://bugzilla.redhat.com/2543255",
+      "https://bugzilla.redhat.com/show_bug.cgi?id=2543245",
+      "https://bugzilla.redhat.com/show_bug.cgi?id=2543255",
+      "https://creativecommons.org/licenses/by/4.0/",
+      "https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2026-97687",
+      "https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2026-97689",
+      "https://errata.almalinux.org/9/ALSA-2026-90494.html",
+      "https://errata.rockylinux.org/RLSA-2026:85929",
+      "https://github.com/urllib3/urllib3",
+      "https://github.com/urllib3/urllib3/commit/cd770b059b543be29298ea5c52afb0b1b090f5ed",
+      "https://github.com/urllib3/urllib3/releases/tag/2.8.0",
+      "https://github.com/urllib3/urllib3/security/advisories/GHSA-vxq7-64xx-v4gw",
+      "https://linux.oracle.com/cve/CVE-2026-97689.html",
+      "https://linux.oracle.com/errata/ELSA-2026-92474.html",
+      "https://nvd.nist.gov/vuln/detail/CVE-2026-97689",
+      "https://ubuntu.com/security/notices/USN-8926-1",
+      "https://www.cve.org/CVERecord?id=CVE-2026-97689"
+     ],
+     "PublishedDate": "2026-09-29T16:17:18.837Z",
+     "LastModifiedDate": "2026-10-13T20:20:06.95Z"
+    },
+    {
+     "VulnerabilityID": "CVE-2026-97688",
+     "PkgID": "urllib3@2.7.0",
+     "PkgName": "urllib3",
+     "PkgIdentifier": {
+      "PURL": "pkg:pypi/urllib3@2.7.0",
+      "UID": "5cc1fb32a61c5b3d",
+      "BOMRef": "pkg:pypi/urllib3@2.7.0"
+     },
+     "InstalledVersion": "2.7.0",
+     "FixedVersion": "2.8.0",
+     "Status": "fixed",
+     "Layer": {
+      "Digest": "sha256:7d824d9f832184c4084576664b622717cb0eb579b504f2079d3b4ac36454761f",
+      "DiffID": "sha256:1217eb836a36d0c4be6a310113a777ecb9d7e9c24197a407665c8884cc5369a4"
+     },
+     "SeveritySource": "ghsa",
+     "PrimaryURL": "https://avd.aquasec.com/nvd/cve-2026-97688",
+     "DataSource": {
+      "ID": "ghsa",
+      "Name": "GitHub Security Advisory pip",
+      "URL": "https://github.com/advisories?query=type%3Areviewed+ecosystem%3Apip"
+     },
+     "Title": "urllib3: urllib3: Denial of Service via infinite loop during chunked Deflate decoding",
+     "Description": "urllib3 is an HTTP client library for Python. From 2.6.2 until 2.8.0, HTTPResponse.stream and HTTPResponse.read_chunked can enter an infinite loop because the Deflate decoder retains trailing bytes as unconsumed input after reaching end-of-stream and repeatedly decodes them without progress. The issue occurs when an untrusted server sends a chunked Deflate response whose decoded body exceeds a positive finite chunk size and whose encoded body has trailing bytes, specifically a response with Transfer-Encoding: chunked and Content-Encoding: deflate, content decoding enabled, and the positive finite amt=N streaming chunk size. The attack mechanism is that a malicious server returns a compressed chunked response with trailing bytes after the Deflate stream. The impact is excessive CPU usage and a request that does not complete, and network read timeouts do not interrupt the loop because no further socket read occurs. This issue is fixed in version 2.8.0.",
+     "Severity": "MEDIUM",
+     "CweIDs": [
+      "CWE-835"
+     ],
+     "VendorSeverity": {
+      "ghsa": 2,
+      "nvd": 2,
+      "redhat": 2,
+      "ubuntu": 2
+     },
+     "CVSS": {
+      "ghsa": {
+       "V40Vector": "CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:N/VC:N/VI:N/VA:L/SC:N/SI:N/SA:N",
+       "V40Score": 6.9
+      },
+      "nvd": {
+       "V3Vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:L",
+       "V3Score": 5.3
+      },
+      "redhat": {
+       "V3Vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:L",
+       "V3Score": 5.3
+      }
+     },
+     "References": [
+      "https://access.redhat.com/security/cve/CVE-2026-97688",
+      "https://advisory.echohq.com/cve/CVE-2026-97688",
+      "https://github.com/urllib3/urllib3",
+      "https://github.com/urllib3/urllib3/commit/ea2ad7b21a80da3632f80016526a18864586077f",
+      "https://github.com/urllib3/urllib3/releases/tag/2.8.0",
+      "https://github.com/urllib3/urllib3/security/advisories/GHSA-gh4c-6fx4-qh6g",
+      "https://nvd.nist.gov/vuln/detail/CVE-2026-97688",
+      "https://ubuntu.com/security/notices/USN-8926-1",
+      "https://www.cve.org/CVERecord?id=CVE-2026-97688"
+     ],
+     "PublishedDate": "2026-09-29T16:17:18.68Z",
+     "LastModifiedDate": "2026-10-13T20:21:30.583Z"
+    }
+   ]
+  }
+ ]
+}
