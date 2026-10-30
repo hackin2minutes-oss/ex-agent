@@ -171,8 +171,17 @@ Taken by the project owner. Each one is implemented as stated.
   POTENTIALLY_EXPLOITABLE with MEDIUM confidence. Every other configuration finding is UNKNOWN.
   Real input: `tests/fixtures/iac/checkov-3.4.0.real.json` from `tests/fixtures/iac/project`.
   Checkov 3.4.0 does not give columns, so IaC locations carry lines only.
-- Not done: Zizmor, Gitleaks, Hadolint, Trivy and Grype adapters; the SCA port; a gate in the
-  universal path; a GitHub Action input for it.
+- CI/CD: the Zizmor adapter (`engine/zizmor_adapter.py`) converts zero-based rows to lines and
+  counts suppressed findings as diagnostics. The CI/CD engine (`engine/cicd.py`) verifies the
+  primary text, then reads the trigger list. An attacker-writable context field used in a shell
+  step, under an external trigger, gives POTENTIALLY_EXPLOITABLE. Under writer-only triggers it
+  gives NOT_EXPLOITABLE, backed by the trigger list. A `pull_request_target` workflow that checks
+  out the pull request's head gives POTENTIALLY_EXPLOITABLE. Hygiene rules give UNKNOWN.
+  Real input: `tests/fixtures/cicd/zizmor-1.31.1.real.json`, from `zizmor --offline` on
+  `tests/fixtures/cicd/project`. Offline mode skips the GitHub API audits. Zizmor's JSON has no
+  version field, so provenance carries no version.
+- Not done: Gitleaks, Hadolint, Trivy and Grype adapters; the SCA port; a gate in the universal
+  path; a GitHub Action input for it.
 
 ## 9. Not claimed
 

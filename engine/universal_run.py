@@ -13,10 +13,12 @@ from pathlib import Path
 
 from engine import report, universal, universal_report
 from engine.checkov_adapter import CheckovAdapter
+from engine.cicd import CicdEngine
 from engine.iac import IacEngine
 from engine.sast import SastEngine
 from engine.semgrep_adapter import SemgrepAdapter
 from engine.universal import EXPOSURES, ModelError, Registry
+from engine.zizmor_adapter import ZizmorAdapter
 
 TOOL_VERSION = "0.1.0"
 
@@ -25,8 +27,10 @@ def build_registry() -> Registry:
     registry = Registry()
     registry.register_adapter(SemgrepAdapter())
     registry.register_adapter(CheckovAdapter())
+    registry.register_adapter(ZizmorAdapter())
     registry.register_engine(SastEngine())
     registry.register_engine(IacEngine())
+    registry.register_engine(CicdEngine())
     return registry
 
 
