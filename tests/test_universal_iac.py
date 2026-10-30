@@ -170,7 +170,8 @@ class IacEndToEndTest(unittest.TestCase):
         self.assertEqual(registry.detect_adapter(load_real()).name, "checkov")
         semgrep = json.loads((SAST_FIXTURES / "semgrep-1.183.0.real.json").read_text(encoding="utf-8"))
         self.assertEqual(registry.detect_adapter(semgrep).name, "semgrep")
-        self.assertEqual(registry.engines(), ["iac-block-exposure", "sast-call-site"])
+        self.assertEqual(registry.engines(),
+                         ["cicd-trigger-analysis", "iac-block-exposure", "sast-call-site"])
 
 
 if __name__ == "__main__":
