@@ -1,0 +1,6 @@
+# Fabricated AWS-shaped access key used only by the secrets tests and their fixtures. It is not a
+# credential for any service. Each fingerprint is one occurrence, so a new real key is still reported.
+tests/fixtures/secrets/gitleaks-8.24.2.real.json:aws-access-token:9
+tests/fixtures/secrets/gitleaks-8.24.2.real.json:aws-access-token:10
+tests/fixtures/secrets/project/config.py:aws-access-token:4
+tests/test_universal_secrets.py:aws-access-token:23
