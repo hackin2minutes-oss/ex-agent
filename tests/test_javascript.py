@@ -56,3 +56,13 @@ class JavaScriptPipelineTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TypeScriptPipelineTest(unittest.TestCase):
+    def test_typescript_import_binding_and_route_are_found(self):
+        from engine import callsites, context
+        ts = ROOT / "tests" / "fixtures" / "ts-app"
+        hits = callsites.scan_call_sites(ts, "lodash.defaultsDeep", "javascript")
+        self.assertEqual([(h["file"], h["line"]) for h in hits], [("app.ts", 10)])
+        routes = context.find_javascript_entry_points(ts)
+        self.assertEqual(routes[0]["route"], "/settings")

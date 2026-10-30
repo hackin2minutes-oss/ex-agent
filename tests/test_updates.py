@@ -138,3 +138,28 @@ class UpdateTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class UpdateCliTest(unittest.TestCase):
+    def setUp(self):
+        import shutil
+        self.tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
+        self.private, self.key = make_key(self.tmp)
+        self.key_path = self.tmp / "publisher.pub"
+
+    def test_cli_installs_a_signed_update_and_rejects_a_forged_one(self):
+        from engine import update_cli
+        good = build_update(self.tmp / "good", self.private, "1.0.0", {"rules/a.json": RULE})
+        self.assertEqual(update_cli.main(["install", "--source", str(good), "--target", str(self.tmp / "t"),
+                                          "--state", str(self.tmp / "s"), "--key", str(self.key_path)]), 0)
+        other_private, _ = make_key(self.tmp / "other")
+        forged = build_update(self.tmp / "forged", other_private, "2.0.0", {"rules/a.json": RULE})
+        self.assertEqual(update_cli.main(["install", "--source", str(forged), "--target", str(self.tmp / "t"),
+                                          "--state", str(self.tmp / "s"), "--key", str(self.key_path)]), 2)
+        self.assertEqual(updates.read_installed_version(self.tmp / "s"), "1.0.0")
+
+    def test_cli_rollback_without_previous_version_fails(self):
+        from engine import update_cli
+        self.assertEqual(update_cli.main(["rollback", "--target", str(self.tmp / "t"),
+                                          "--state", str(self.tmp / "s")]), 2)
