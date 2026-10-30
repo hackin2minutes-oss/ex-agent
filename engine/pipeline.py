@@ -246,6 +246,32 @@ def _graph_limitations(call_graph: dict) -> list[str]:
     return [f"{report.CALL_GRAPH_INCOMPLETE} ({reasons}); the absence of a call path is unknown"]
 
 
+def analysis_summary(ctx: dict, findings: list[dict]) -> dict:
+    """Completeness of the bounded analysis, for summary.json and SARIF.
+
+    The Python call graph is the only bounded structure. Its limits and counts are reported
+    whether or not it was built. "bounded_analysis_complete" is True only when no
+    incompleteness was detected. It is not a claim that the analysis is exhaustive.
+    """
+    graph = ctx.get("python_graph")
+    incomplete_findings = [f["id"] for f in findings
+                           if any(e.get("type") == "call_paths" and e.get("result") == "incomplete"
+                                  for e in f["evidence"])]
+    call_graph = None
+    if graph is not None:
+        call_graph = {**graph.summary(), "built": True}
+    reasons = list(graph.incomplete_reasons) if graph is not None else []
+    return {
+        "python_call_graph": call_graph or {"built": False},
+        "limits": {"max_nodes": callgraph.MAX_NODES, "max_edges": callgraph.MAX_EDGES,
+                   "max_depth": callgraph.MAX_DEPTH, "max_paths": callgraph.MAX_PATHS,
+                   "max_expansions": callgraph.MAX_EXPANSIONS},
+        "findings_with_incomplete_call_paths": incomplete_findings,
+        "incomplete_reasons": reasons,
+        "bounded_analysis_complete": not reasons and not incomplete_findings,
+    }
+
+
 def analyse_candidate(cand: dict, project_dir: Path, ctx: dict) -> dict:
     dep = cand["dependency"]
     symbol_names, symbol_source = candidate_symbols(cand, ctx["intel"], ctx["fix_diffs_dir"])
@@ -460,6 +486,7 @@ def run(project_dir: Path, deps_path: Path | None, rules_dir: Path, output_dir: 
         "fail_on": fail_on,
         "gate_failed": gate,
         "notes": notes,
+        "analysis": analysis_summary(ctx, findings),
     }
 
     report.write_all(output_dir, findings, summary, TOOL_VERSION)

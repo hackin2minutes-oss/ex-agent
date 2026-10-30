@@ -90,3 +90,10 @@ from `tracemalloc`:
 The scale test module (13 tests, 100 to 4,000 files) ran in 5.4 s of wall time.
 The 2,000-file row is new in this report. Its build is bounded by the same 50,000-node cap
 as the 4,000-file row, which is why the two peak-memory figures are close.
+
+## Follow-up PR 1: performance
+
+The graph construction code is unchanged in this PR. The new `analysis_summary` runs once
+per analysis over counts that are already held in memory, so its cost is not measured
+here. The lock-currency check adds one `pip-compile` run to CI. Its duration was not
+recorded.

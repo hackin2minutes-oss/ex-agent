@@ -27,7 +27,22 @@ def _call_site_location(finding: dict) -> dict | None:
     return None
 
 
-def to_sarif(findings: list[dict], tool_version: str) -> dict:
+def _incomplete_notifications(analysis: dict) -> list[dict]:
+    """SARIF toolExecutionNotifications for incomplete analysis. Standard SARIF 2.1.0 only."""
+    notes = []
+    for reason in analysis.get("incomplete_reasons", []):
+        notes.append({"level": "warning",
+                      "message": {"text": f"Python call graph is incomplete ({reason}); "
+                                          "the absence of a call path is unknown"}})
+    affected = analysis.get("findings_with_incomplete_call_paths", [])
+    if affected:
+        notes.append({"level": "warning",
+                      "message": {"text": f"Call-path search is incomplete for {len(affected)} finding(s); "
+                                          "'no path' is not reported for them"}})
+    return notes
+
+
+def to_sarif(findings: list[dict], tool_version: str, analysis: dict | None = None) -> dict:
     rules = {}
     results = []
     for finding in findings:
@@ -54,17 +69,21 @@ def to_sarif(findings: list[dict], tool_version: str) -> dict:
             }}],
             "partialFingerprints": {"finding": finding["id"]},
         })
+    run = {
+        "tool": {"driver": {
+            "name": "exploitability-agent",
+            "version": tool_version,
+            "rules": list(rules.values()),
+        }},
+        "results": results,
+    }
+    if analysis is not None:
+        run["invocations"] = [{"executionSuccessful": True,
+                               "toolExecutionNotifications": _incomplete_notifications(analysis)}]
     return {
         "$schema": SARIF_SCHEMA,
         "version": "2.1.0",
-        "runs": [{
-            "tool": {"driver": {
-                "name": "exploitability-agent",
-                "version": tool_version,
-                "rules": list(rules.values()),
-            }},
-            "results": results,
-        }],
+        "runs": [run],
     }
 
 
@@ -147,7 +166,8 @@ def write_all(output_dir: Path, findings: list[dict], summary: dict, tool_versio
     output_dir.mkdir(parents=True, exist_ok=True)
     (output_dir / "evidence.json").write_text(json.dumps({"findings": findings}, indent=2), encoding="utf-8")
     (output_dir / "summary.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
-    (output_dir / "findings.sarif").write_text(json.dumps(to_sarif(findings, tool_version), indent=2),
+    (output_dir / "findings.sarif").write_text(json.dumps(to_sarif(findings, tool_version, summary.get("analysis")),
+                                                          indent=2),
                                                encoding="utf-8")
     (output_dir / "call-graph.json").write_text(json.dumps(call_graph(findings), indent=2), encoding="utf-8")
     (output_dir / "report.md").write_text(summary_markdown(summary, findings), encoding="utf-8")

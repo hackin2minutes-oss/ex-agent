@@ -97,3 +97,33 @@ matching `--exposure` argument.
 - The Werkzeug debugger checks are still regex configuration checks. They are tested by
   the existing configuration tests and not by new argument-aware tests, because they
   have no data argument.
+
+## Follow-up PR 1: test run and CI
+
+Local run on branch `audit-evidence-and-reporting` (based on `main` at `61524d1`):
+
+```
+PYTHONPATH=. python3 -P -m unittest discover -s tests -t .
+Ran 281 tests in 13.377s
+OK
+```
+
+New in this PR: `tests/test_analysis_completeness.py` (12 tests). They cover truncated and
+edge-limited graphs, incomplete search results, the SARIF notifications (including the
+output without an analysis argument), the `summary.json` and `findings.sarif` written by
+`report.write_all`, and an end-to-end `pipeline.run` on the Go fixture.
+
+SARIF validation (official OASIS 2.1.0 schema, `scripts/audit_validate_sarif.py`):
+a complete-analysis file and a truncated-analysis file, both reported `VALID`.
+
+Dependency lock: `requirements.lock` regenerated with `pip-tools` 7.6.2 and matched the
+committed file exactly, apart from its header comments. A fresh virtualenv installed it with
+`pip install --require-hashes -r requirements.lock` (201 hash lines, `PyYAML` 6.0.2,
+`cryptography` 50.0.1). CI runs the same install in the Unit tests job, and a
+lock-currency check that regenerates the lock and diffs it.
+
+CI results for this PR are recorded in the pull request, not here, and are added after the
+run completes.
+
+Not verified here: the Code Scanning upload result (HTTP 403 from the API), local Docker
+build (no daemon), live intelligence sources (egress blocked).

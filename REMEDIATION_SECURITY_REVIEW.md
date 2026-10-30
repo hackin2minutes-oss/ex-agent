@@ -134,3 +134,19 @@ user reports it deleted; the revocation has not been confirmed from here.
 No finding in this review changes the status recorded in `REMEDIATION_REPORT.md`. The
 residual risks above are the reason F-02, F-03, F-07 and F-08 are PARTIALLY_FIXED rather
 than FIXED.
+
+## Follow-up PR 1: changes and residual risk
+
+- **Hash-locked dependencies.** The engine, the image and CI install from
+  `requirements.lock`, with SHA-256 hashes for every package. A changed or substituted
+  artifact fails the install. The lock-currency check regenerates the lock in CI with a
+  pinned `pip-tools` (7.6.2), so an edited `requirements.txt` without a matching lock fails
+  the build.
+- **Residual:** the lock-currency step installs `pip-tools` by version, not by hash. That
+  tool runs in CI only and is not in the engine or the image. Pinning it by hash is a
+  follow-up.
+- **Summary and SARIF.** The new `analysis` block and the SARIF notifications only report
+  completeness. They don't change what the engine decides, so they add no trust boundary.
+  No custom SARIF properties are used.
+- **Still open:** the Code Scanning result is unverified (HTTP 403 from the API), and the
+  wrapper repository has not been checked.
