@@ -189,8 +189,15 @@ Taken by the project owner. Each one is implemented as stated.
   Real input: `tests/fixtures/secrets/gitleaks-8.24.2.real.json`, from `tests/fixtures/secrets/project`.
   The credential there is fabricated. Gitleaks' empty output is not detectable, so the CLI takes
   `--adapter gitleaks`.
-- Not done: Hadolint, Trivy and Grype adapters; the SCA port; a gate in the universal path; a
-  GitHub Action input for it.
+- Container (Dockerfile only): Checkov's `dockerfile` framework is routed to category CONTAINER,
+  with asset type `container_image`. The container engine (`engine/container.py`) re-verifies the
+  block. A rule about an exposed port whose verified block is an EXPOSE gives POTENTIALLY_EXPLOITABLE
+  with MEDIUM confidence. The runtime's publishing is not known. Other build findings give UNKNOWN.
+  Real input: `tests/fixtures/container/checkov-3.4.0-dockerfile.real.json`. Image vulnerabilities are
+  NOT assessed. They need Trivy or Grype, which cannot run here (section 5).
+- Not done: Hadolint, Trivy and Grype adapters (the latter two need image scanning and their
+  release downloads are blocked here); the SCA port; a gate in the universal path; a GitHub Action
+  input for it; DAST, IAST and RASP (each needs a running target application, see phase 7).
 
 ## 9. Not claimed
 
