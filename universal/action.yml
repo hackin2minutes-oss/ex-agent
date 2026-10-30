@@ -8,11 +8,21 @@ description: >
 inputs:
   reports:
     description: >
-      Scanner reports, one path per line or comma-separated, relative to the workspace. Supported:
+      Scanner reports, one path per line or comma-separated, relative to the workspace. Optional when
+      code-scanning-repo is set. Supported:
       Semgrep JSON, Trivy config JSON, Trivy vulnerability JSON, Grype JSON, OSV-Scanner JSON,
       Checkov JSON, Zizmor JSON, Gitleaks JSON, Hadolint JSON, Nuclei JSON export, and SAWONE
       IAST/RASP evidence (sawone.iast/1, sawone.rasp/1).
-    required: true
+    required: false
+    default: ""
+  code-scanning-repo:
+    description: >
+      owner/name of a repository whose open GitHub code-scanning alerts are added as input. Needs the
+      GITHUB_TOKEN environment variable on the step, with security-events: read.
+    default: ""
+  code-scanning-ref:
+    description: "Git ref of the alerts, for example refs/heads/master. Required with code-scanning-repo."
+    default: ""
   project-dir:
     description: Project root that the reports' paths are relative to, relative to the workspace
     default: "."
@@ -68,3 +78,7 @@ runs:
     - ${{ inputs.max-report-bytes }}
     - --max-records
     - ${{ inputs.max-records }}
+    - --code-scanning-repo
+    - ${{ inputs.code-scanning-repo }}
+    - --code-scanning-ref
+    - ${{ inputs.code-scanning-ref }}
