@@ -1,0 +1,6 @@
+{
+  "description": "Request value reaches the sink through a parameter. Interprocedural flow is not traced, so the influence is unknown.",
+  "exposure": "internet",
+  "truth": 1,
+  "expected_verdict": "POTENTIALLY_EXPLOITABLE"
+}

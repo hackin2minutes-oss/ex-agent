@@ -1,0 +1,6 @@
+{
+  "description": "Known false positive: a module-level call passes a constant. Constant propagation is not implemented, so the parameter stays unknown.",
+  "exposure": "internet",
+  "truth": 0,
+  "expected_verdict": "POTENTIALLY_EXPLOITABLE"
+}

@@ -1,0 +1,6 @@
+{
+  "description": "Constant SQL text with the request value bound as a parameter.",
+  "exposure": "internet",
+  "truth": 0,
+  "expected_verdict": "MITIGATED"
+}

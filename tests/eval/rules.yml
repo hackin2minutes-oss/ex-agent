@@ -1,0 +1,10 @@
+# Semgrep rules for the evaluation corpus only. Each rule matches any call to a database cursor's execute,
+# whatever the number of arguments, so a parameterised call is reported the way a scanner would report it.
+rules:
+  - id: corpus-sql-execute
+    languages: [python]
+    severity: ERROR
+    message: "Statement passed to cursor.execute; check whether any part is attacker-controlled."
+    metadata:
+      cwe: ["CWE-89: SQL Injection"]
+    pattern: $CURSOR.execute(...)

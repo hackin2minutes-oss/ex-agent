@@ -1,0 +1,6 @@
+{
+  "description": "The flagged statement is a constant. The request value is used elsewhere, not in SQL.",
+  "exposure": "internet",
+  "truth": 0,
+  "expected_verdict": "NOT_EXPLOITABLE"
+}

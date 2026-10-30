@@ -25,6 +25,7 @@ from pathlib import Path
 
 from engine import findings as sca_findings
 from engine import pipeline, report, sca_universal, universal, universal_report
+from engine.application import Application
 from engine.checkov_adapter import CheckovAdapter
 from engine.cicd import CicdEngine
 from engine.container import ContainerEngine
@@ -282,8 +283,16 @@ def run(inputs, project_dir: Path, output_dir: Path, *, exposure: str = "unknown
         adapters_used.append("sca-pipeline")
 
     unassessed = [f for f in findings if "assessment" not in f]
+    # One shared analysis per run, built only when a finding needs it. Every finding reuses it.
+    application = None
+    attack_surface = []
+    if any(f["category"] == "SAST" for f in unassessed):
+        application = Application(project_dir.resolve())
+        attack_surface = [{"route": e["route"], "file": e["file"], "line": e["line"]}
+                          for e in application.entries()]
     assessed = universal.assess_all(unassessed, registry, {"project_dir": project_dir.resolve(),
-                                                           "exposure": exposure})
+                                                           "exposure": exposure,
+                                                           "application": application})
     assessed = [f for f in findings if "assessment" in f] + assessed
     assessed = _merge_duplicates(assessed)
     limitations = sorted({item for finding in assessed for item in finding["assessment"]["limitations"]})
@@ -300,6 +309,9 @@ def run(inputs, project_dir: Path, output_dir: Path, *, exposure: str = "unknown
     }
     gated = [f["id"] for f in assessed if f["assessment"]["verdict"] in GATE_VERDICTS[fail_on]]
     summary["gate"] = {"fail_on": fail_on, "failed": bool(gated), "failing_findings": gated}
+    if application is not None:
+        summary["application"] = application.search_summary()
+        summary["attack_surface"] = attack_surface
     universal_report.write_outputs(output_dir, assessed, summary, TOOL_VERSION, diagnostics)
     return summary
 

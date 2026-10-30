@@ -1,0 +1,6 @@
+{
+  "description": "HTML escaping does not stop SQL injection. The sanitiser is not credited, so the call stays potential.",
+  "exposure": "internet",
+  "truth": 1,
+  "expected_verdict": "POTENTIALLY_EXPLOITABLE"
+}
