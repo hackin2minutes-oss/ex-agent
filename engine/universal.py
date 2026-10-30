@@ -21,6 +21,7 @@ Rules enforced by `make_assessment`, so no engine can break them:
 
 import hashlib
 from dataclasses import dataclass, field
+from pathlib import Path
 
 CONFIRMED_EXPLOITABLE = "CONFIRMED_EXPLOITABLE"
 POTENTIALLY_EXPLOITABLE = "POTENTIALLY_EXPLOITABLE"
@@ -313,6 +314,18 @@ class Registry:
 
     def engines(self) -> list[str]:
         return sorted(self._engines)
+
+
+def resolve_project_file(project_dir: Path, relative: str) -> tuple[Path | None, str]:
+    """Resolve a scanner-reported path inside the project. Returns (path, "") or (None, reason).
+    Scanner output is data: a path that leaves the project is never read."""
+    root = Path(project_dir).resolve()
+    target = (root / relative).resolve()
+    if not target.is_relative_to(root):
+        return None, "the reported path leaves the project directory and was not read"
+    if not target.is_file():
+        return None, f"source file {relative} was not found in the project"
+    return target, ""
 
 
 def revalidate(result: Assessment, exposure: str) -> Assessment:
