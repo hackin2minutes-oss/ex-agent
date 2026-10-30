@@ -195,9 +195,27 @@ Taken by the project owner. Each one is implemented as stated.
   with MEDIUM confidence. The runtime's publishing is not known. Other build findings give UNKNOWN.
   Real input: `tests/fixtures/container/checkov-3.4.0-dockerfile.real.json`. Image vulnerabilities are
   NOT assessed. They need Trivy or Grype, which cannot run here (section 5).
-- Not done: Hadolint, Trivy and Grype adapters (the latter two need image scanning and their
-  release downloads are blocked here); the SCA port; a gate in the universal path; a GitHub Action
-  input for it; DAST, IAST and RASP (each needs a running target application, see phase 7).
+- Trivy config (IaC and Dockerfile, offline): `engine/trivy_config_adapter.py`. Trivy's
+  `Code.Lines` is the same shape as a Checkov code block, so the IaC and container engines verify it
+  the same way. Real output: `tests/fixtures/iac/trivy-config-0.real.json` and
+  `tests/fixtures/container/trivy-config-dockerfile.real.json`. Its vulnerability records are not
+  read: the database download is blocked here.
+- Hadolint (Dockerfile lint): `engine/hadolint_adapter.py`. Hadolint gives no code block, so the
+  container engine only checks that the reported line exists. Its findings stay UNKNOWN unless a rule
+  is about exposure. The binary came from the PyPI wheel `hadolint-bin` 2.15.1, and the output is in
+  `tests/fixtures/container/hadolint-2.15.1.real.json`.
+- SCA projection (read-only): `engine/sca_universal.py` maps evidence.json to universal findings and
+  assessments. Its stages become conditions, and the legacy class becomes the verdict through
+  `from_legacy`. A verdict the stages do not support becomes ANALYSIS_INCOMPLETE with the reason. The
+  SCA pipeline and its outputs are not changed, so the projection is a mapping, not a port of the
+  engine onto the Engine interface.
+- Gate: `python -m engine.universal_run --fail-on` takes `confirmed_exploitable` (default) or
+  `potentially_exploitable`. The result is in the summary and in the exit code.
+- Not run here: Grype (its module fails to build from the Go proxy, and its vulnerability database
+  download is blocked) and the Trivy vulnerability scan, for the same database reason. The wrapper
+  Action input is not added: it needs a new image, and publishing an image needs the production
+  environment approval.
+- Not done: DAST, IAST and RASP. See the section on DAST for what is planned and what is not.
 
 ## 9. Not claimed
 

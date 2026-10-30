@@ -17,7 +17,7 @@ reachability, and this engine has neither. It never returns MITIGATED or NOT_EXP
 """
 
 from engine.universal import (
-    POTENTIALLY_EXPLOITABLE, UNKNOWN_STATUS, Condition, Engine, make_assessment,
+    POTENTIALLY_EXPLOITABLE, UNKNOWN_STATUS, Condition, Engine, code_block_of, make_assessment,
     resolve_project_file, unknown_assessment,
 )
 
@@ -41,15 +41,15 @@ def block_matches(block, lines: list[str]) -> bool:
 
 # A rule is about network exposure only when its name says so. The block text alone is not
 # enough: a description check on an open security group is not an exposure finding.
-EXPOSURE_RULE_TERMS = ("0.0.0.0", "::/0", "ingress", "internet", "public")
+EXPOSURE_RULE_TERMS = ("0.0.0.0", "::/0", "ingress", "internet", "public", "unrestricted")
 
 
 def _admits_internet_ingress(block_text: str) -> bool:
     return "ingress" in block_text and any(cidr in block_text for cidr in OPEN_CIDRS)
 
 
-def _rule_is_about_exposure(check_name: str) -> bool:
-    name = check_name.lower()
+def _rule_is_about_exposure(title: str) -> bool:
+    name = title.lower()
     return any(term in name for term in EXPOSURE_RULE_TERMS)
 
 
@@ -73,7 +73,7 @@ class IacEngine(Engine):
             return unknown_assessment(problem, engine=self.name)
 
         lines = target.read_text(encoding="utf-8", errors="strict").splitlines(keepends=True)
-        block = finding["original"].get("code_block") or []
+        block = code_block_of(finding)
         span = f"{location['path']}:{location['start_line']}-{location['end_line']}"
         if not block_matches(block, lines):
             return unknown_assessment(
@@ -88,8 +88,7 @@ class IacEngine(Engine):
         evidence = [{"condition": None, "kind": "source",
                      "detail": f"block at {span} matches the file"}]
 
-        check_name = finding["original"].get("check_name") or ""
-        if _rule_is_about_exposure(check_name) and _admits_internet_ingress(block_text):
+        if _rule_is_about_exposure(finding["vulnerability"]["title"]) and _admits_internet_ingress(block_text):
             evidence.append({"condition": None, "kind": "source",
                              "detail": f"ingress rule at {span} admits 0.0.0.0/0 or ::/0"})
             return make_assessment(

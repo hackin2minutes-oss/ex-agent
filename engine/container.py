@@ -18,7 +18,7 @@ It never returns CONFIRMED_EXPLOITABLE, NOT_EXPLOITABLE or MITIGATED.
 
 from engine.iac import block_matches
 from engine.universal import (
-    POTENTIALLY_EXPLOITABLE, UNKNOWN_STATUS, Condition, Engine, make_assessment,
+    POTENTIALLY_EXPLOITABLE, UNKNOWN_STATUS, Condition, Engine, code_block_of, make_assessment,
     resolve_project_file, unknown_assessment,
 )
 
@@ -51,19 +51,25 @@ class ContainerEngine(Engine):
             return unknown_assessment(problem, engine=self.name)
 
         lines = target.read_text(encoding="utf-8", errors="strict").splitlines(keepends=True)
-        block = finding["original"].get("code_block") or []
+        block = code_block_of(finding)
         span = f"{location['path']}:{location['start_line']}-{location['end_line']}"
-        if not block_matches(block, lines):
+        if block:
+            if not block_matches(block, lines):
+                return unknown_assessment(
+                    f"the scanned code block at {span} no longer matches the file; the scan is stale",
+                    engine=self.name)
+        elif location["start_line"] > len(lines):
+            # Some scanners (Hadolint) give no code block. Then only the line's existence is checked.
             return unknown_assessment(
-                f"the scanned code block at {span} no longer matches the file; the scan is stale",
+                f"the reported line {span} is past the end of the file; the scan is stale",
                 engine=self.name)
 
-        block_text = "".join(str(text) for _, text in block)
-        check_name = (finding["original"].get("check_name") or "").lower()
+        block_text = "".join(str(text) for _, text in block)  # empty when there is no code block
         coverage = {"analysed": [f"{span} scanner block matches the Dockerfile"],
                     "not_analysed": list(self.limits)}
 
-        if any(term in check_name for term in EXPOSE_RULE_TERMS) and _exposes_port(block_text):
+        title = finding["vulnerability"]["title"].lower()
+        if any(term in title for term in EXPOSE_RULE_TERMS) and _exposes_port(block_text):
             return make_assessment(
                 POTENTIALLY_EXPLOITABLE,
                 reason=("the image declares an exposed port that the rule is about; whether the "
