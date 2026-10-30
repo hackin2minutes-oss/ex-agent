@@ -21,6 +21,7 @@ from engine.universal import ModelError
 ROOT = Path(__file__).resolve().parent.parent
 TRIVY = ROOT / "tests" / "fixtures" / "scanner-exports" / "trivy-fs-python-app.real.json"
 OSV = ROOT / "tests" / "fixtures" / "scanner-exports" / "osv-python-app.real.json"
+GRYPE = ROOT / "tests" / "fixtures" / "scanner-exports" / "grype-python-app.real.json"
 PROJECT = ROOT / "tests" / "fixtures" / "python-app"
 SEMGREP = ROOT / "tests" / "fixtures" / "sast" / "semgrep-1.183.0.real.json"
 
@@ -57,6 +58,19 @@ class ScaRouteTest(unittest.TestCase):
         self.assertEqual(len(findings), 3)
         for finding in findings:
             self.assertEqual([s["scanner"] for s in finding["sources"]], ["trivy", "osv-scanner"])
+
+    def test_grype_report_runs_through_the_sca_route(self):
+        summary = self.run_case([GRYPE])
+        self.assertEqual(summary["inputs"], [{"input": GRYPE.name, "route": "sca", "records": 3}])
+        self.assertEqual({f["vulnerability"]["rule_id"] for f in self.findings()},
+                         {"GHSA-8q59-q68h-6hv4", "GHSA-rprw-h62v-c2w7", "GHSA-68rp-wp8r-4726"})
+
+    def test_three_scanners_on_one_vulnerability_keep_all_three_sources(self):
+        self.run_case([GRYPE, TRIVY, OSV])
+        findings = self.findings()
+        self.assertEqual(len(findings), 3)
+        for finding in findings:
+            self.assertEqual(sorted(s["scanner"] for s in finding["sources"]), ["grype", "osv-scanner", "trivy"])
 
     def test_one_failing_sca_analysis_is_reported_and_does_not_stop_other_reports(self):
         with mock.patch.object(pipeline, "run", side_effect=OSError("advisory service unreachable")):
