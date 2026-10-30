@@ -24,7 +24,7 @@ import signal
 import sys
 from pathlib import Path
 
-from engine import code_scanning
+from engine import code_scanning, provenance
 from engine import findings as sca_findings
 from engine import pipeline, report, sca_universal, universal, universal_report
 from engine import guidance
@@ -45,6 +45,8 @@ from engine.secrets_engine import SecretsEngine
 from engine.semgrep_adapter import SemgrepAdapter
 from engine.trivy_config_adapter import TrivyConfigAdapter
 from engine.universal import EXPOSURES, ModelError, Registry
+
+REPORT_SUFFIXES = {".sarif", ".json"}
 from engine.zizmor_adapter import ZizmorAdapter
 
 TOOL_VERSION = "0.1.0"
@@ -361,6 +363,10 @@ def main(argv: list[str] | None = None) -> int:
                         help="Curated SCA rules directory")
     parser.add_argument("--offline", type=_bool, default=False,
                         help="true to skip advisory and intelligence lookups for the SCA path")
+    parser.add_argument("--input-dir", type=Path, action="append", default=[],
+                        help="Directory of scanner reports (.sarif and .json), searched recursively. Repeatable.")
+    parser.add_argument("--allow-commit-mismatch", type=_bool, default=False,
+                        help="true to analyse reports generated from a commit other than the project's HEAD")
     parser.add_argument("--code-scanning-repo", default="",
                         help="owner/name whose open Code Scanning alerts are assessed (no scanner runs)")
     parser.add_argument("--code-scanning-ref", default="",
@@ -370,6 +376,14 @@ def main(argv: list[str] | None = None) -> int:
         args.rules_dir = DEFAULT_RULES
     listed = [Path(item.strip()) for item in args.inputs.replace(",", "\n").splitlines() if item.strip()]
     inputs = list(args.input) + listed
+    for directory in args.input_dir:
+        if not directory.is_dir():
+            parser.error(f"--input-dir is not a directory: {directory}")
+        found = sorted(p for p in directory.rglob("*")
+                       if p.is_file() and p.suffix.lower() in REPORT_SUFFIXES
+                       and not any(part.startswith(".") for part in p.relative_to(directory).parts))
+        print(f"input directory {directory}: {len(found)} report(s)")
+        inputs += found
     if args.code_scanning_repo:
         if not args.code_scanning_ref:
             parser.error("--code-scanning-ref is needed with --code-scanning-repo")
@@ -383,6 +397,14 @@ def main(argv: list[str] | None = None) -> int:
         print(f"code scanning: {len(alerts)} open alert(s) on {args.code_scanning_ref}")
     if not inputs:
         parser.error("give at least one --input, --inputs or --code-scanning-repo")
+    try:
+        commit_diagnostics, inputs = provenance.check_reports(
+            inputs, args.project_dir, allow_mismatch=args.allow_commit_mismatch)
+    except ModelError as exc:
+        print(f"rejected: {exc}", file=sys.stderr)
+        return 2
+    for line in commit_diagnostics:
+        print(line)
 
     def on_timeout(signum, frame):
         raise TimeoutError(f"the run exceeded {args.timeout_seconds} seconds")
