@@ -13,8 +13,8 @@ jobs:
     name: Unit tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.13"
       - name: Run unit tests
@@ -28,7 +28,7 @@ jobs:
       pull-requests: write   # PR comment, same-repository pull requests only
       security-events: write # SARIF upload to Code Scanning
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Run the action
         id: exploitability
@@ -48,14 +48,14 @@ jobs:
 
       - name: Upload SARIF to Code Scanning
         if: always() && hashFiles('exploitability-report/findings.sarif') != ''
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: exploitability-report/findings.sarif
           category: exploitability-self-test
 
       - name: Upload report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: exploitability-report-action
           path: exploitability-report/
@@ -64,14 +64,14 @@ jobs:
     name: CodeQL call-site and taint
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: "17"
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.13"
 
@@ -98,9 +98,25 @@ jobs:
       - name: Verify CodeQL report
         run: python3 -P scripts/verify_report.py codeql-report --mode codeql --expect-call-site
 
+      - name: Run engine on the taint positive control
+        run: |
+          PYTHONPATH=. python3 -P -m engine \
+            --project-dir tests/fixtures/taint-control \
+            --deps tests/fixtures/taint-control/resolved-deps.json \
+            --rules-dir rules \
+            --output-dir codeql-control-report \
+            --codeql "$PWD/codeql/codeql" \
+            --build-command "sh $PWD/tests/fixtures/build.sh taint-control" \
+            --fail-on confirmed_exploitable \
+            --offline true \
+            --no-comment
+
+      - name: Verify taint positive control
+        run: python3 -P scripts/verify_report.py codeql-control-report --mode codeql --expect-call-site --expect-taint confirmed
+
       - name: Upload report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: exploitability-report-codeql
           path: codeql-report/

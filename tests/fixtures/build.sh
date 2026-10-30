@@ -1,8 +1,10 @@
 #!/bin/sh
-# Compiles the fixture sources so CodeQL can extract them. Spring jars are not on the
-# classpath, so javac reports errors; extraction still records every file, so errors are ignored.
-# CodeQL runs this from the project directory, so the script works from its own location.
+# Compiles a fixture project so CodeQL can extract it. Usage: build.sh [app|taint-control]
+# Spring jars are not on the classpath, so javac reports errors; extraction still records
+# every file, so errors are ignored. CodeQL runs this from the project directory, so the
+# script works from its own location.
 HERE="$(cd "$(dirname "$0")" && pwd)"
-OUT="${TMPDIR:-/tmp}/fixture-classes"
+TARGET="${1:-app}"
+OUT="${TMPDIR:-/tmp}/fixture-classes-$TARGET"
 mkdir -p "$OUT"
-cd "$HERE/app" && javac -d "$OUT" $(find . -name '*.java') || true
+cd "$HERE/$TARGET" && javac -d "$OUT" $(find . -name '*.java') || true

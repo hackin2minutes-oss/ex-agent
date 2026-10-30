@@ -16,6 +16,7 @@ def main(argv: list[str]) -> int:
     parser.add_argument("report_dir", type=Path)
     parser.add_argument("--mode", required=True, choices=["codeql", "text_scan"])
     parser.add_argument("--expect-call-site", action="store_true")
+    parser.add_argument("--expect-taint", choices=["confirmed", "not_found", "not_analysed"])
     args = parser.parse_args(argv)
 
     errors: list[str] = []
@@ -49,6 +50,8 @@ def main(argv: list[str]) -> int:
         if args.expect_call_site and not call["locations"]:
             errors.append("no call site found")
         taint = next(e for e in finding["evidence"] if e["type"] == "taint_path")
+        if args.expect_taint and taint["result"] != args.expect_taint:
+            errors.append(f"taint_path is {taint['result']}, expected {args.expect_taint}")
         print(f"::notice title=Finding::taint_path={taint['result']} "
               f"reachability={finding['reachability']} verdict={finding['verdict']} "
               f"analysis_mode={summary['analysis_mode']}")
