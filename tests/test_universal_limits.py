@@ -68,3 +68,16 @@ class LimitsTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class RulesDirTest(unittest.TestCase):
+    """An empty rules path must mean the rules shipped with the engine. Resolving it against the current
+    directory silently loaded zero rules, which gave zero SCA findings in the container."""
+
+    def test_empty_rules_path_resolves_to_shipped_rules(self):
+        from engine import __main__ as sca_main
+        self.assertEqual(sca_main.SHIPPED_RULES, universal_run.DEFAULT_RULES)
+        self.assertTrue(any(universal_run.DEFAULT_RULES.glob("*.json")))
+
+    def test_universal_run_without_rules_dir_uses_shipped_rules(self):
+        self.assertEqual(universal_run.DEFAULT_RULES, ROOT / "rules")

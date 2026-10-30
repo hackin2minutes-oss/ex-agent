@@ -5,6 +5,7 @@ from pathlib import Path
 
 from engine import findings as scanner_findings, pipeline, report, updates
 
+SHIPPED_RULES = Path(__file__).resolve().parent.parent / "rules"
 FAIL_ON_CHOICES = ["confirmed_reachable", "confirmed_exploitable"]
 EXPOSURE_CHOICES = ["internet", "internal", "unknown"]
 
@@ -27,7 +28,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--project-dir", type=Path, required=True)
     parser.add_argument("--deps", type=_optional_path, default=None,
                         help="Resolved dependency file. Default: first known file in the project.")
-    parser.add_argument("--rules-dir", type=Path, default=Path("rules"))
+    parser.add_argument("--rules-dir", type=_optional_path, default=None,
+                        help="Curated rules. Empty or unset: the rules shipped with the engine.")
     parser.add_argument("--output-dir", type=Path, default=Path("exploitability-report"))
     parser.add_argument("--fail-on", choices=FAIL_ON_CHOICES, default="confirmed_reachable")
     parser.add_argument("--exposure", choices=EXPOSURE_CHOICES, default="unknown",
@@ -52,6 +54,8 @@ def main(argv: list[str] | None = None) -> int:
                         default=Path(".exploitability-cache/updates/current"),
                         help="Where the installed update lives. Its rules/ directory is used for analysis.")
     args = parser.parse_args(argv)
+    if args.rules_dir is None:
+        args.rules_dir = SHIPPED_RULES
 
     imported = None
     if args.findings:

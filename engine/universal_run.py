@@ -260,6 +260,11 @@ def run(inputs, project_dir: Path, output_dir: Path, *, exposure: str = "unknown
     return summary
 
 
+def _optional_path(value: str) -> Path | None:
+    # Action inputs arrive as empty strings when unset; an empty path means "the shipped rules".
+    return Path(value) if value else None
+
+
 def _bool(value: str) -> bool:
     # Action inputs arrive as strings, and a Docker action's arguments are fixed, so the flag is a value.
     if value.lower() in {"true", "1", "yes"}:
@@ -287,11 +292,13 @@ def main(argv: list[str] | None = None) -> int:
                         help="Verdicts that make the run exit 1")
     parser.add_argument("--adapter", default=None,
                         help="Adapter name, for input that detection cannot tell apart (e.g. empty output)")
-    parser.add_argument("--rules-dir", type=Path, default=DEFAULT_RULES,
+    parser.add_argument("--rules-dir", type=_optional_path, default=None,
                         help="Curated SCA rules directory")
     parser.add_argument("--offline", type=_bool, default=False,
                         help="true to skip advisory and intelligence lookups for the SCA path")
     args = parser.parse_args(argv)
+    if args.rules_dir is None:
+        args.rules_dir = DEFAULT_RULES
     listed = [Path(item.strip()) for item in args.inputs.replace(",", "\n").splitlines() if item.strip()]
     inputs = list(args.input) + listed
     if not inputs:

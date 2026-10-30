@@ -29,8 +29,8 @@ inputs:
     description: "true to skip advisory and intelligence lookups for the SCA path"
     default: "true"
   rules-dir:
-    description: Curated SCA rules directory, relative to the image
-    default: "rules"
+    description: Curated SCA rules directory. Empty uses the rules shipped with the image.
+    default: ""
   timeout-seconds:
     description: Wall-clock limit for the whole run. 0 disables it.
     default: "600"
