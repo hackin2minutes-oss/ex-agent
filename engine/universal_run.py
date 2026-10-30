@@ -18,13 +18,14 @@ engine there. Neither changes `run`.
 """
 
 import argparse
+import importlib.util
 import json
 import os
 import signal
 import sys
 from pathlib import Path
 
-from engine import code_scanning, provenance
+from engine import code_scanning, provenance, weakness
 from engine import findings as sca_findings
 from engine import pipeline, report, sca_universal, universal, universal_report
 from engine import guidance
@@ -202,6 +203,24 @@ def _merge_duplicates(findings: list[dict]) -> list[dict]:
     return list(merged.values())
 
 
+def load_plugin(path: Path, registry: Registry) -> str:
+    """Load a plugin file and let it register its adapters and engines. The core engine is not edited: a plugin file
+    defines register(registry) and calls registry.register_adapter / register_engine."""
+    if not path.is_file() or path.suffix != ".py":
+        raise ModelError(f"plugin must be a .py file: {path}")
+    spec = importlib.util.spec_from_file_location(f"sawone_plugin_{path.stem}", path)
+    module = importlib.util.module_from_spec(spec)
+    try:
+        spec.loader.exec_module(module)
+    except Exception as exc:  # a broken plugin must stop the run, not be skipped
+        raise ModelError(f"plugin {path.name} failed to load: {type(exc).__name__}") from exc
+    register = getattr(module, "register", None)
+    if not callable(register):
+        raise ModelError(f"plugin {path.name} defines no register(registry) function")
+    register(registry)
+    return f"plugin {path.name}: registered"
+
+
 def run(inputs, project_dir: Path, output_dir: Path, *, exposure: str = "unknown",
         adapter_name: str | None = None, fail_on: str = "confirmed_exploitable",
         registry: Registry | None = None, offline: bool = True,
@@ -289,6 +308,8 @@ def run(inputs, project_dir: Path, output_dir: Path, *, exposure: str = "unknown
         findings.extend(sca_results)
         adapters_used.append("sca-pipeline")
 
+    for finding in findings:
+        finding["weakness"] = weakness.classify(finding)
     unassessed = [f for f in findings if "assessment" not in f]
     # One shared analysis per run, built only when a finding needs it. Every finding reuses it.
     application = None
@@ -365,6 +386,10 @@ def main(argv: list[str] | None = None) -> int:
                         help="true to skip advisory and intelligence lookups for the SCA path")
     parser.add_argument("--input-dir", type=Path, action="append", default=[],
                         help="Directory of scanner reports (.sarif and .json), searched recursively. Repeatable.")
+    parser.add_argument("--plugin", type=Path, action="append", default=[],
+                        help="Python file with register(registry) that adds an adapter or engine. Repeatable.")
+    parser.add_argument("--allow-dirty", type=_bool, default=False,
+                        help="true to analyse a project whose working tree has uncommitted changes")
     parser.add_argument("--allow-commit-mismatch", type=_bool, default=False,
                         help="true to analyse reports generated from a commit other than the project's HEAD")
     parser.add_argument("--code-scanning-repo", default="",
@@ -400,6 +425,10 @@ def main(argv: list[str] | None = None) -> int:
     try:
         commit_diagnostics, inputs = provenance.check_reports(
             inputs, args.project_dir, allow_mismatch=args.allow_commit_mismatch)
+        commit_diagnostics.append(provenance.check_clean(args.project_dir, allow_dirty=args.allow_dirty))
+        plugin_registry = build_registry()
+        for plugin in args.plugin:
+            commit_diagnostics.append(load_plugin(plugin, plugin_registry))
     except ModelError as exc:
         print(f"rejected: {exc}", file=sys.stderr)
         return 2
@@ -416,7 +445,7 @@ def main(argv: list[str] | None = None) -> int:
         summary = run(inputs, args.project_dir, args.output_dir, exposure=args.exposure,
                       adapter_name=args.adapter, fail_on=args.fail_on, offline=args.offline,
                       rules_dir=args.rules_dir, max_report_bytes=args.max_report_bytes,
-                      max_records=args.max_records)
+                      max_records=args.max_records, registry=plugin_registry)
     except ModelError as exc:
         print(f"rejected: {exc}", file=sys.stderr)
         return 2
