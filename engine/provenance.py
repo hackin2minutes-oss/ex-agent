@@ -26,9 +26,12 @@ def _is_sha(value) -> bool:
 
 
 def report_commits(document) -> set[str]:
-    """Commits a report declares. SARIF only: every run's versionControlProvenance revisionId."""
+    """Commits a report declares. SARIF: every run's versionControlProvenance revisionId. Threat-model reports:
+    `source_commit` or `commit` at the top level, or `source.commit`. Nothing else is read as a declaration."""
     commits: set[str] = set()
-    if isinstance(document, dict) and isinstance(document.get("runs"), list):
+    if not isinstance(document, dict):
+        return commits
+    if isinstance(document.get("runs"), list):
         for run in document["runs"]:
             if not isinstance(run, dict):
                 continue
@@ -36,6 +39,11 @@ def report_commits(document) -> set[str]:
                 revision = item.get("revisionId") if isinstance(item, dict) else None
                 if _is_sha(revision):
                     commits.add(revision.lower())
+        return commits
+    source = document.get("source") if isinstance(document.get("source"), dict) else {}
+    for candidate in (document.get("source_commit"), document.get("commit"), source.get("commit")):
+        if _is_sha(candidate):
+            commits.add(candidate.lower())
     return commits
 
 

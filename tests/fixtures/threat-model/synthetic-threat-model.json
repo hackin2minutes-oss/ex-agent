@@ -1,0 +1,91 @@
+{
+  "name": "Example Threat Model",
+  "description": "Synthetic fixture in the SAWONE threat-model format. Not a real system.",
+  "threats": [
+    {
+      "sid": "INP05",
+      "target": "Example Web App",
+      "kind": "Server",
+      "external": false,
+      "title": "Command Line Execution through SQL Injection",
+      "severity": "Very High",
+      "likelihood": "High",
+      "stride": "E",
+      "status": "theoretical",
+      "evidence_level": "theoretical",
+      "evidence": [],
+      "evidence_total": 0,
+      "decision": null,
+      "mitigations": "Validate all input before use.",
+      "references": "https://cwe.mitre.org/data/definitions/89.html",
+      "gating": false,
+      "exposed": true
+    },
+    {
+      "sid": "AC01",
+      "target": "HTTPS Request",
+      "kind": "Dataflow",
+      "external": false,
+      "title": "Broken Access Control on Search",
+      "severity": "High",
+      "likelihood": "High",
+      "stride": "E",
+      "status": "theoretical",
+      "evidence_level": "theoretical",
+      "evidence": [],
+      "evidence_total": 0,
+      "decision": null,
+      "mitigations": "Validate all input before use.",
+      "references": "https://cwe.mitre.org/data/definitions/89.html",
+      "gating": false,
+      "exposed": true
+    },
+    {
+      "sid": "AC01",
+      "target": "Database Query",
+      "kind": "Datastore",
+      "external": false,
+      "title": "Broken Access Control on Orders",
+      "severity": "Very Low",
+      "likelihood": "High",
+      "stride": "S",
+      "status": "in-code",
+      "evidence_level": "in-code",
+      "evidence": [
+        "Controllers/OrderController.cs:12"
+      ],
+      "evidence_total": 1,
+      "decision": {
+        "state": "accepted",
+        "by": "reviewer",
+        "reason": "tracked elsewhere"
+      },
+      "mitigations": "Validate all input before use.",
+      "references": "https://cwe.mitre.org/data/definitions/89.html",
+      "gating": false,
+      "exposed": true
+    }
+  ],
+  "counts": {
+    "theoretical": 2,
+    "in-code": 1
+  },
+  "total": 3,
+  "gating": 0,
+  "by_stride": {
+    "E": 2,
+    "S": 1
+  },
+  "dfd": {
+    "elements": [
+      "Example Web App",
+      "Database"
+    ],
+    "boundaries": [
+      "Internet"
+    ]
+  },
+  "sequence": [
+    "Browser -> Example Web App"
+  ]
+}

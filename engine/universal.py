@@ -35,9 +35,9 @@ VERDICTS = (CONFIRMED_EXPLOITABLE, POTENTIALLY_EXPLOITABLE, NOT_EXPLOITABLE, NOT
             MITIGATED, UNKNOWN, ANALYSIS_INCOMPLETE)
 
 CATEGORIES = ("SAST", "SCA", "DAST", "IAST", "RASP", "SECRET", "IAC", "CONTAINER", "K8S",
-              "CLOUD", "API", "CICD", "SUPPLY_CHAIN", "CONFIG")
+              "CLOUD", "API", "CICD", "SUPPLY_CHAIN", "CONFIG", "THREAT_MODEL")
 ASSET_TYPES = ("source_location", "endpoint", "cloud_resource", "container_image",
-               "dependency", "secret", "configuration", "workflow")
+               "dependency", "secret", "configuration", "workflow", "threat_element")
 
 CONFIRMED = "CONFIRMED"
 NOT_CONFIRMED = "NOT_CONFIRMED"
@@ -61,6 +61,8 @@ SEVERITY_NORMALISED = {
     "critical": "critical", "high": "high", "error": "high",
     "medium": "medium", "moderate": "medium", "warning": "medium",
     "low": "low", "info": "info", "information": "info", "note": "info",
+    # pytm labels that the universal scale does not have, mapped to the nearest level. The reported label is kept.
+    "very high": "high", "very low": "low",
 }
 EXPOSURES = ("internet", "internal", "unknown")
 
