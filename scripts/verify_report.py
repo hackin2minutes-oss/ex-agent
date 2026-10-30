@@ -17,6 +17,7 @@ def main(argv: list[str]) -> int:
     parser.add_argument("--expect-call-site", action="store_true")
     parser.add_argument("--expect-taint", choices=["confirmed", "not_found", "not_analysed"])
     parser.add_argument("--expect-classification", required=True)
+    parser.add_argument("--expect-cve", default=None)
     args = parser.parse_args(argv)
 
     errors: list[str] = []
@@ -44,8 +45,8 @@ def main(argv: list[str]) -> int:
     for finding in findings:
         if finding["classification"] != args.expect_classification:
             errors.append(f"classification is {finding['classification']}, expected {args.expect_classification}")
-        if finding["vulnerability"]["cve"] != "CVE-XXXX-XXXX":
-            errors.append("finding does not match the curated rule")
+        if args.expect_cve and finding["vulnerability"]["cve"] != args.expect_cve:
+            errors.append(f"finding is {finding['vulnerability']['cve']}, expected {args.expect_cve}")
         call = next(e for e in finding["evidence"] if e["type"] == "call_site")
         if args.expect_call_site and not call["locations"]:
             errors.append("no call site found")
