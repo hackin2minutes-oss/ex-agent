@@ -25,7 +25,7 @@ NAME = "iac-block-exposure"
 OPEN_CIDRS = ("0.0.0.0/0", "::/0")
 
 
-def _block_matches(block, lines: list[str]) -> bool:
+def block_matches(block, lines: list[str]) -> bool:
     if not block:
         return False
     for entry in block:
@@ -75,7 +75,7 @@ class IacEngine(Engine):
         lines = target.read_text(encoding="utf-8", errors="strict").splitlines(keepends=True)
         block = finding["original"].get("code_block") or []
         span = f"{location['path']}:{location['start_line']}-{location['end_line']}"
-        if not _block_matches(block, lines):
+        if not block_matches(block, lines):
             return unknown_assessment(
                 f"the scanned code block at {span} no longer matches the file; the scan is stale",
                 engine=self.name)

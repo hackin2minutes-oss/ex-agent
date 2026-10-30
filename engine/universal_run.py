@@ -14,6 +14,7 @@ from pathlib import Path
 from engine import report, universal, universal_report
 from engine.checkov_adapter import CheckovAdapter
 from engine.cicd import CicdEngine
+from engine.container import ContainerEngine
 from engine.gitleaks_adapter import GitleaksAdapter
 from engine.iac import IacEngine
 from engine.sast import SastEngine
@@ -35,6 +36,7 @@ def build_registry() -> Registry:
     registry.register_engine(IacEngine())
     registry.register_engine(CicdEngine())
     registry.register_engine(SecretsEngine())
+    registry.register_engine(ContainerEngine())
     return registry
 
 

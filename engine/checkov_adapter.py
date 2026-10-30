@@ -5,6 +5,7 @@ terraform_plan, kubernetes, ...). Each document has `check_type`, `summary` and
 `results.failed_checks`. Only failed checks become findings. Passed and skipped checks are
 counted in diagnostics, and so are parsing errors, so nothing is silently absent.
 
+The `dockerfile` framework is a container category. Every other framework is IaC.
 Each failed check keeps its original record verbatim. Checkov gives line ranges and a code
 block, not columns, so the location has no column fields.
 """
@@ -26,7 +27,7 @@ def _is_checkov_document(item) -> bool:
 class CheckovAdapter(Adapter):
     name = "checkov"
     formats = (CHECKOV_FORMAT,)
-    categories = ("IAC",)
+    categories = ("IAC", "CONTAINER")
 
     def detect(self, document) -> bool:
         docs = _documents(document)
@@ -69,11 +70,12 @@ class CheckovAdapter(Adapter):
             "start_col": None,
             "end_col": None,
         }
+        container = framework == "dockerfile"
         return make_finding(
-            category="IAC",
+            category="CONTAINER" if container else "IAC",
             rule_id=rule_id,
             title=check.get("check_name") or rule_id,
-            asset={"type": "configuration", "name": resource},
+            asset={"type": "container_image" if container else "configuration", "name": resource},
             location=location,
             severity_reported=check.get("severity"),
             provenance={
