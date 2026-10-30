@@ -104,23 +104,27 @@ def summary_markdown(summary: dict, findings: list[dict]) -> str:
         lines.append("No vulnerable dependency versions were found in the analysed scope.")
     else:
         lines += [
-            "| CVE | Library | Verdict | Reachability | Preconditions | Call site |",
+            "| CVE | Library | Classification | Severity | Policy | Call site |",
             "|---|---|---|---|---|---|",
         ]
         for f in findings:
             call = _call_site_location(f)
             where = f"`{call['file']}:{call['line']}`" if call else "not found"
+            severity = (f["vulnerability"].get("severity") or "unknown").lower()
+            policy_action = (f.get("policy") or {}).get("action", "report")
             lines.append(
                 f"| {f['vulnerability']['cve'] or f['vulnerability']['id']} | "
-                f"`{f['library']}:{f['dependency']['version']}` | `{f['verdict']}` | "
-                f"`{f['reachability']}` | `{f['preconditions']}` | {where} |"
+                f"`{f['library']}:{f['dependency']['version']}` | `{f['classification']}` | "
+                f"{severity} | `{policy_action}` | {where} |"
             )
+    gate_name = "policy" if summary.get("policy") else summary["fail_on"]
     lines += [
         "",
-        f"Analysis mode: `{summary['analysis_mode']}`. Gate `{summary['fail_on']}`: "
+        f"Analysis mode: `{summary['analysis_mode']}`. Gate `{gate_name}`: "
         f"{'failed' if summary['gate_failed'] else 'passed'}.",
         "",
         "Intelligence sources: " + ", ".join(f"{k} {v}" for k, v in sorted(summary["intel"].items())),
+        "Unresolved dependencies: " + str(summary.get("unresolved_dependencies", 0)),
         "",
         "\"Not reachable\" applies only to the analysed scope and does not mean the CVE is harmless.",
     ]

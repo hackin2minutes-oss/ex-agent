@@ -86,9 +86,12 @@ class ReportTest(unittest.TestCase):
         kinds = {n["kind"] for n in graph["nodes"]}
         self.assertEqual(kinds, {"entry_point", "vulnerable_call"})
 
-    def test_markdown_lists_verdict_and_scope_caveat(self):
-        text = report.summary_markdown(SUMMARY, [FINDING])
-        self.assertIn("potentially_exploitable", text)
+    def test_markdown_lists_classification_and_scope_caveat(self):
+        finding = dict(FINDING, classification="reachable_preconditions_unknown",
+                       policy={"action": "warn", "rule": "x"})
+        text = report.summary_markdown(SUMMARY, [finding])
+        self.assertIn("`reachable_preconditions_unknown`", text)
+        self.assertIn("`warn`", text)
         self.assertIn("does not mean the CVE is harmless", text)
 
     def test_no_findings_message(self):
