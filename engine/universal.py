@@ -147,9 +147,12 @@ class Assessment:
     coverage: dict
     limitations: list[str]
     engine: str
+    # The path the analysis traced, when it traced one: a list of hops, each with a file, a function and a line.
+    # None means no path was traced. An assessment never invents a path.
+    attack_path: list[dict] | None = None
 
     def to_dict(self) -> dict:
-        return {
+        out = {
             "verdict": self.verdict,
             "reason": self.reason,
             "conditions": {name: c.to_dict() for name, c in self.conditions.items()},
@@ -159,6 +162,9 @@ class Assessment:
             "limitations": list(self.limitations),
             "engine": self.engine,
         }
+        if self.attack_path is not None:
+            out["attack_path"] = list(self.attack_path)
+        return out
 
 
 def _conditions(given: dict | None) -> dict:
@@ -343,11 +349,13 @@ def resolve_project_file(project_dir: Path, relative: str) -> tuple[Path | None,
 def revalidate(result: Assessment, exposure: str) -> Assessment:
     """Run an engine's assessment through the same rules as make_assessment. The core does
     not trust an engine to have used the constructor."""
-    return make_assessment(
+    checked = make_assessment(
         result.verdict, reason=result.reason, engine=result.engine, conditions=result.conditions,
         evidence=result.evidence, confidence=result.confidence,
         confidence_reason=result.confidence_reason, coverage=result.coverage,
         limitations=result.limitations, exposure=exposure)
+    checked.attack_path = result.attack_path
+    return checked
 
 
 def assess_finding(finding: dict, registry: Registry, context: dict) -> dict:

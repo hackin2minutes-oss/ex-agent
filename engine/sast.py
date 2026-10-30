@@ -118,6 +118,16 @@ def _call_spanning(tree: ast.AST, location: dict) -> ast.Call | None:
     return None
 
 
+def _with_path(assessment, app, reach):
+    """Attach the traced route-to-sink path to an assessment. Each hop names its file, function and line."""
+    hops = []
+    for node in reach.path:
+        meta = app.graph.nodes[node]
+        hops.append({"file": meta["file"], "function": meta["id"].split(":")[-1], "line": meta["line"]})
+    assessment.attack_path = hops
+    return assessment
+
+
 class SastEngine(Engine):
     name = NAME
     categories = ("SAST",)
@@ -280,7 +290,7 @@ class SastEngine(Engine):
                     "not_analysed": list(self.limits)}
 
         if reach_status == CONFIRMED and attacker == REQUEST and exposure == "internet":
-            return make_assessment(
+            return _with_path(make_assessment(
                 CONFIRMED_EXPLOITABLE,
                 reason=("a route reaches the call, a request value reaches it without a sanitiser on the traced path, "
                         "and the application is declared internet-facing; this is a static path, not a demonstrated exploit"),
@@ -297,9 +307,9 @@ class SastEngine(Engine):
                 coverage=coverage,
                 limitations=base_limits + ["static evidence only: no request was sent and no runtime path was observed"],
                 exposure=exposure,
-            )
+            ), app, reach)
         if reach_status == CONFIRMED and attacker == REQUEST:
-            return make_assessment(
+            return _with_path(make_assessment(
                 POTENTIALLY_EXPLOITABLE,
                 reason=("a route reaches the call and a request value reaches it, but the application is not declared "
                         "internet-facing, so attacker reach is not established"),
@@ -315,7 +325,7 @@ class SastEngine(Engine):
                 coverage=coverage,
                 limitations=base_limits,
                 exposure=exposure,
-            )
+            ), app, reach)
         if reach_status == NOT_CONFIRMED:
             return make_assessment(
                 NOT_REACHABLE,
@@ -345,7 +355,7 @@ class SastEngine(Engine):
                 limitations=base_limits + ["callers outside this project are not analysed"],
                 exposure=exposure,
             )
-        return make_assessment(
+        potential = make_assessment(
             POTENTIALLY_EXPLOITABLE,
             reason=("the flagged call has an argument that is not a literal, and its exposure to attacker input or "
                     "reachability is not established"),
@@ -361,3 +371,6 @@ class SastEngine(Engine):
             limitations=base_limits,
             exposure=exposure,
         )
+        if reach_status == CONFIRMED:
+            return _with_path(potential, app, reach)
+        return potential

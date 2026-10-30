@@ -27,10 +27,10 @@ FLAGGED = {"CONFIRMED_EXPLOITABLE", "POTENTIALLY_EXPLOITABLE"}
 UNDECIDED = {"UNKNOWN", "ANALYSIS_INCOMPLETE"}
 
 
-def run_case(case_dir: Path, out: Path) -> dict:
+def run_case(case_dir: Path, out: Path, report: str = "semgrep.json") -> dict:
     case = json.loads((case_dir / "case.json").read_text(encoding="utf-8"))
     started = time.perf_counter()
-    summary = universal_run.run([case_dir / "semgrep.json"], case_dir, out, exposure=case["exposure"],
+    summary = universal_run.run([case_dir / report], case_dir, out, exposure=case["exposure"],
                                 offline=True)
     elapsed = time.perf_counter() - started
     findings = json.loads((out / "universal-findings.json").read_text(encoding="utf-8"))["findings"]
@@ -102,6 +102,19 @@ def main() -> int:
     finally:
         shutil.rmtree(scratch, ignore_errors=True)
     metrics = measure(results)
+    # Source independence: the same applications, reported as SARIF instead of Semgrep JSON. The engine must not
+    # change its verdicts when only the input format changes.
+    sarif_results = []
+    scratch = Path(tempfile.mkdtemp())
+    try:
+        for case_dir in sorted(p for p in CORPUS.iterdir() if p.is_dir() and (p / "semgrep.sarif").exists()):
+            sarif_results.append(run_case(case_dir, scratch / case_dir.name, "semgrep.sarif"))
+    finally:
+        shutil.rmtree(scratch, ignore_errors=True)
+    by_name = {r["case"]: r for r in results}
+    agree = [r["case"] for r in sarif_results if r["verdicts"] == by_name[r["case"]]["verdicts"]]
+    metrics["source_agreement"] = {"compared": len(sarif_results), "identical_verdicts": len(agree),
+                                   "disagreements": [r["case"] for r in sarif_results if r["case"] not in agree]}
     report = {"metrics": metrics, "cases": results}
     print(json.dumps(metrics, indent=2))
     mismatches = [r for r in results if r["verdicts"] and r["verdicts"][0] != r["expected"]]
