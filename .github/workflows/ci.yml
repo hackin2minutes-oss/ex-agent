@@ -82,7 +82,15 @@ jobs:
           tar -xzf codeql-bundle.tar.gz
           ./codeql/codeql --version
 
+      - name: Fetch Spring jars for the CodeQL build
+        run: |
+          mvn -B -q -f tests/fixtures/spring-classpath/pom.xml \
+            dependency:copy-dependencies -DoutputDirectory="$RUNNER_TEMP/spring-libs"
+          ls "$RUNNER_TEMP/spring-libs"
+
       - name: Run engine with CodeQL
+        env:
+          SPRING_LIBS: ${{ runner.temp }}/spring-libs
         run: |
           PYTHONPATH=. python3 -P -m engine \
             --project-dir tests/fixtures/app \
@@ -99,6 +107,8 @@ jobs:
         run: python3 -P scripts/verify_report.py codeql-report --mode codeql --expect-call-site
 
       - name: Run engine on the taint positive control
+        env:
+          SPRING_LIBS: ${{ runner.temp }}/spring-libs
         run: |
           PYTHONPATH=. python3 -P -m engine \
             --project-dir tests/fixtures/taint-control \
