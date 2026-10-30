@@ -8,7 +8,7 @@
 
 import java
 
-from MethodAccess call, Method m
+from MethodCall call, Method m
 where
   m = call.getMethod() and
   m.getDeclaringType().hasQualifiedName("{{PACKAGE}}", "{{CLASS}}") and

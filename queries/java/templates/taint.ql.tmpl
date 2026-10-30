@@ -16,7 +16,7 @@ module VulnConfig implements DataFlow::ConfigSig {
   predicate isSource(DataFlow::Node source) { source instanceof RemoteFlowSource }
 
   predicate isSink(DataFlow::Node sink) {
-    exists(MethodAccess call |
+    exists(MethodCall call |
       call.getMethod().getDeclaringType().hasQualifiedName("{{PACKAGE}}", "{{CLASS}}") and
       call.getMethod().hasName("{{METHOD}}") and
       sink.asExpr() = call.getAnArgument()
