@@ -20,8 +20,8 @@ this change. Any claim that depends on them is marked as pending.
 | F-03 | Constant filename satisfies an attacker-input precondition | PARTIALLY_FIXED. Not resolved: the audit finding stays open | Scenario tests (22); CodeQL CI verify steps passed |
 | F-04 | NOT_AFFECTED never emitted | FIXED | Local pipeline and unit tests |
 | F-06 | Fictional placeholder rule shipped | FIXED | Hygiene tests; rule removed from `rules/` |
-| F-07 | Docker image runs as root | PARTIALLY_FIXED | Dockerfile changed; image not built here; CI step added, not run |
-| F-08 | Actions pinned to tags, not SHAs | PARTIALLY_FIXED | SHAs resolved with `git ls-remote`; wrapper repo not reachable |
+| F-07 | Docker image runs as root | FIXED (root defect; verified in merged CI) | Non-root step passed in CI on `61524d1` (main). Base image digest pinned separately: `docs/BASE_IMAGE_UPDATES.md` |
+| F-08 | Actions pinned to tags, not SHAs | PARTIALLY_FIXED | Action references in this repo pinned to SHAs; wrapper repo reference still `@v1` (not reachable from here) |
 
 ## F-01 Call-graph truncation destroys edges
 
@@ -272,61 +272,49 @@ not re-verified against the advisories in this change.
 
 ## F-07 Docker image runs as root
 
-**Root cause.** The Dockerfile had no `USER` directive, so the engine ran as root inside
-the container, with the runner workspace mounted.
+**Status: FIXED for the root defect.** Verified in merged CI. The Action job on `main`
+(`61524d1`) completed with conclusion success. That job includes the step that builds the image,
+checks that `id -u` is `1001`, and writes a probe file into a mounted directory as that user.
+The same step also passed on `7e13c45` and on attempts 1 and 2 of the `82a32c9` run.
 
-**Change.** The Dockerfile creates a system user and group with UID and GID 1001, which
-matches the owner of the GitHub-hosted runner workspace, so the report can still be
-written. It then sets `USER 1001:1001` with a numeric user, so checks that require a
-non-root user can read it without name resolution. The engine writes only to the workspace
-and the output directory, so no home directory is needed.
+**Change.** The Dockerfile creates a system user and group with UID and GID 1001, which matches
+the owner of the GitHub-hosted runner workspace, so the report can still be written. It then sets
+`USER 1001:1001` with a numeric user, so checks that require a non-root user can read it without
+name resolution. The engine writes only to the workspace and the output directory, so no home
+directory is needed.
 
-A CI step in the action job builds the image, checks `id -u` equals `1001`, and writes a
-probe file into a mounted directory as that user.
+**Separate supply-chain control (follow-up PR 2).** The base image is pinned by digest, not by
+tag. The digest was resolved from Docker Hub's official `library/python` repository and verified
+by recomputing the manifest's SHA-256. It is not part of the F-07 root defect. Its process and
+limits are in `docs/BASE_IMAGE_UPDATES.md`.
 
-**Status reason.** PARTIALLY_FIXED, because the image could not be built here (the Docker
-daemon is not running in this environment). The Dockerfile syntax was checked by reading,
-and the CI step has not run. The FIXED status requires that CI step to pass.
-
-**Residual.** The base image `python:3.13-slim` is referenced by tag, not digest. The
-wrapper repository's image reference is a tag (`v0.3.0`), not a digest.
+**Residual.** Nothing alerts when the base image tag moves. The digest pin is updated by hand.
 
 ## F-08 Actions pinned to tags, not SHAs
 
-**Root cause.** Workflows referenced actions by mutable tags (`actions/checkout@v7`, and
-others), so an upstream tag could move to different code.
+**Status: PARTIALLY_FIXED.** Pinning is in place, but the wrapper reference is still a tag.
 
-**Change.** Every third-party action in `.github/workflows/ci.yml` and
-`.github/workflows/publish-image.yml` is pinned to a full commit SHA with the version in a
-trailing comment. Each SHA was resolved with `git ls-remote --tags`. For annotated tags the
-peeled commit (`^{}`) is used, not the tag object. Example workflow references
-(`examples/exploitability.yml`) are pinned the same way.
+**What is pinned.** Every third-party action in `.github/workflows/ci.yml` and
+`.github/workflows/publish-image.yml`, and in `examples/exploitability.yml`, is pinned to a
+full commit SHA, with the version in a comment. The SHAs were resolved with `git ls-remote`,
+and annotated tags use the peeled commit.
 
-| Action | Pin | Version comment |
-|---|---|---|
-| actions/checkout | 3d3c42e5aac5ba805825da76410c181273ba90b1 | v7.0.1 |
-| actions/setup-python | 6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 | v7.1.0 |
-| actions/upload-artifact | cf430e030ddbb5b0abf93d22962f4752f3646cd9 | v7.0.2 |
-| actions/setup-java | b843ebf9b913146b38da2eaa7aeddf76074ae1ad | v6.1.0 |
-| github/codeql-action/upload-sarif | 9b3254085494b55a0f7c4c2b3d2d52cc712ce370 | v4.39.1 |
-| docker/setup-buildx-action | f87e5991a6d7451dcb8d9637bfbc97413f497069 | v4.4.1 |
-| docker/login-action | 81c6f93d4bc991e510b342a00b419b3bb4efc5c6 | v4.7.0 |
-| docker/build-push-action | c3c9e263c25d99ce0380d002d59b67737d91b0dc | v7.4.0 |
+**What CI has run.** The pins were introduced in `7e13c45`. Since then, the CI jobs on `main`
+(`61524d1`) and on PR head `82a32c9` have run the pinned `actions/checkout`,
+`actions/setup-python`, `actions/setup-java`, `actions/upload-artifact` and
+`github/codeql-action/upload-sarif`, and all of them succeeded. The publish workflow's pinned
+Docker actions (`setup-buildx`, `login`, `build-push`) have **not** run since they were pinned:
+the publish workflow is manual and was not dispatched after the pin. Its pins are unexercised.
 
-The example workflow also pins `actions/checkout` v4 to `11d5960a…`, `actions/setup-java`
-v4 to `cf277c60…`, and `github/codeql-action/upload-sarif` v3 to `4bfa242a…`.
+**Not pinned.**
+- `hackin2minutes-oss/exploitability-agent@v1`, in `examples/exploitability.yml`. This is this
+  project's own wrapper, and its repository is not reachable from this session.
+- The wrapper repository's Docker image, referenced as `v0.3.0`. It is a tag, not a digest.
+- The base image is pinned by digest (follow-up PR 2). That is a separate control from action
+  pinning. See `docs/BASE_IMAGE_UPDATES.md`.
 
-**Verification.** All workflow and example files parse as YAML. `grep "uses:"` shows no
-tag-only references left in the repository except the one below. No `ghp_`, `github_pat_`
-or `AKIA` pattern appears in the tree.
-
-**Status reason.** PARTIALLY_FIXED for three reasons:
-- `examples/exploitability.yml` still references `hackin2minutes-oss/exploitability-agent@v1`.
-  That is this project's wrapper action. Its SHA could not be resolved from this session,
-  because the repository requires credentials to read here.
-- The wrapper action's Docker image is referenced by tag, not digest.
-- The pins were resolved from the remote, not checked against a signed source. Dependabot
-  or an equivalent should be enabled to keep them current.
+**Residual.** Dependabot is not enabled, so the pins won't update on their own. Pins were
+resolved from the remote, not from a signed source.
 
 ## Files changed
 
