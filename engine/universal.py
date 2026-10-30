@@ -118,6 +118,13 @@ def make_finding(*, category: str, rule_id: str, title: str, asset: dict, locati
     }
 
 
+def code_block_of(finding: dict) -> list:
+    """The scanner's code block as [line_number, text] pairs, from wherever the adapter put it.
+    Checkov keeps it in the original record. Trivy's is derived from Code.Lines and kept in `derived`,
+    so the original record stays verbatim."""
+    return finding.get("derived", {}).get("code_block") or finding["original"].get("code_block") or []
+
+
 @dataclass
 class Condition:
     status: str
