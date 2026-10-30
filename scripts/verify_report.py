@@ -25,7 +25,8 @@ def main(argv: list[str]) -> int:
         if not (report / name).is_file():
             errors.append(f"missing {name}")
     if errors:
-        print("\n".join(errors))
+        for error in errors:
+            print(f"::error title=Report verification::{error}")
         return 1
 
     summary = json.loads((report / "summary.json").read_text())
@@ -48,8 +49,9 @@ def main(argv: list[str]) -> int:
         if args.expect_call_site and not call["locations"]:
             errors.append("no call site found")
         taint = next(e for e in finding["evidence"] if e["type"] == "taint_path")
-        print(f"taint_path: {taint['result']}  reachability: {finding['reachability']}  "
-              f"verdict: {finding['verdict']}")
+        print(f"::notice title=Finding::taint_path={taint['result']} "
+              f"reachability={finding['reachability']} verdict={finding['verdict']} "
+              f"analysis_mode={summary['analysis_mode']}")
 
     if sarif.get("version") != "2.1.0":
         errors.append("SARIF version is not 2.1.0")
@@ -58,6 +60,8 @@ def main(argv: list[str]) -> int:
 
     print(json.dumps(summary, indent=2))
     if errors:
+        for error in errors:
+            print(f"::error title=Report verification::{error}")
         print("FAILED:\n- " + "\n- ".join(errors))
         return 1
     print("OK")
