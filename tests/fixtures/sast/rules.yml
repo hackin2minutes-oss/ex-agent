@@ -1,0 +1,16 @@
+# Local Semgrep rules used only to produce the SAST test fixture. They are not production rules.
+rules:
+  - id: fixture-sql-execute
+    languages: [python]
+    severity: ERROR
+    message: "Query passed to cursor.execute; check whether any part is attacker-controlled."
+    metadata:
+      cwe: ["CWE-89: SQL Injection"]
+    pattern: $CURSOR.execute($QUERY)
+  - id: fixture-js-eval
+    languages: [javascript]
+    severity: WARNING
+    message: "eval() call; check whether its argument is attacker-controlled."
+    metadata:
+      cwe: ["CWE-95: Eval Injection"]
+    pattern: eval($CODE)
