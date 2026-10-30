@@ -7,6 +7,11 @@ on:
         description: "Image tag to publish, for example v0.1.0"
         required: true
         type: string
+      codeql-version:
+        description: "Optional CodeQL CLI release (for example 2.27.3). Adds a -codeql image tag."
+        required: false
+        default: ""
+        type: string
 
 permissions:
   contents: read
@@ -44,6 +49,17 @@ jobs:
         with:
           context: .
           push: true
+          build-args: |
+            CODEQL_VERSION=${{ inputs.codeql-version }}
           tags: |
-            ${{ env.IMAGE }}:${{ inputs.version }}
+            ${{ env.IMAGE }}:${{ inputs.version }}${{ inputs.codeql-version != '' && '-codeql' || '' }}
             ${{ env.IMAGE }}:${{ github.sha }}
+
+      - name: Smoke test the image
+        run: |
+          set -e
+          TAG="${{ inputs.version }}${{ inputs.codeql-version != '' && '-codeql' || '' }}"
+          docker run --rm "$IMAGE:$TAG" --help >/dev/null
+          if [ -n "${{ inputs.codeql-version }}" ]; then
+            docker run --rm --entrypoint codeql "$IMAGE:$TAG" version
+          fi
