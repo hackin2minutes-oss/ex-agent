@@ -3,7 +3,7 @@ import os
 import sys
 from pathlib import Path
 
-from engine import pipeline, report
+from engine import pipeline, report, updates
 
 FAIL_ON_CHOICES = ["confirmed_reachable", "confirmed_exploitable"]
 
@@ -39,10 +39,32 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--policy", type=_optional_path, default=None,
                         help="Policy file (YAML). When given, it decides the gate instead of --fail-on.")
     parser.add_argument("--no-comment", action="store_true", help="Do not post a pull request comment")
+    parser.add_argument("--update-dir", type=_optional_path, default=None,
+                        help="Signed update directory to verify and install before analysis")
+    parser.add_argument("--update-key", type=_optional_path, default=None,
+                        help="Pinned publisher key (Ed25519 PEM). Required with --update-dir.")
+    parser.add_argument("--update-target", type=_optional_path,
+                        default=Path(".exploitability-cache/updates/current"),
+                        help="Where the installed update lives. Its rules/ directory is used for analysis.")
     args = parser.parse_args(argv)
 
+    rules_dir = args.rules_dir
+    if args.update_dir is not None:
+        if args.update_key is None:
+            print("update rejected: --update-dir needs --update-key", file=sys.stderr)
+            return 2
+        state = args.update_target.parent
+        try:
+            installed = updates.install(args.update_dir, args.update_target, state,
+                                        updates.load_publisher_key(args.update_key))
+        except updates.UpdateError as exc:
+            print(f"update rejected: {exc}", file=sys.stderr)
+            return 2
+        print(f"using update {installed['version']}")
+        rules_dir = args.update_target / "rules"
+
     summary = pipeline.run(
-        args.project_dir, args.deps, args.rules_dir, args.output_dir, args.fail_on,
+        args.project_dir, args.deps, rules_dir, args.output_dir, args.fail_on,
         offline=args.offline, cache_dir=args.cache_dir, fix_diffs_dir=args.fix_diffs_dir,
         codeql_path=args.codeql or None, build_command=args.build_command or None,
         policy_path=args.policy,

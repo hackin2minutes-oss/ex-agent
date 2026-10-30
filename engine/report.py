@@ -85,7 +85,10 @@ def call_graph(findings: list[dict]) -> dict:
                 for loc in item.get("locations", []):
                     node = f"{loc['file']}:{loc['line']}"
                     nodes.setdefault(node, {"id": node, "kind": "vulnerable_call",
-                                            "symbol": item.get("symbol")})
+                                            "symbol": item.get("symbol"),
+                                            "resolution": "codeql-call" if item.get("method") == "codeql"
+                                            else "lexical-match",
+                                            "engine": item.get("method", "unknown")})
         taint_proven = any(i["type"] == "taint_path" and i["result"] == "confirmed"
                            for i in finding["evidence"])
         for item in finding["evidence"]:
@@ -94,7 +97,8 @@ def call_graph(findings: list[dict]) -> dict:
                     if not flow.get("source"):
                         continue
                     edges.append({"from": flow["source"], "to": flow["sink"],
-                                  "kind": "taint", "proven": taint_proven})
+                                  "kind": "taint", "proven": taint_proven,
+                                  "resolution": "codeql-dataflow", "engine": "codeql"})
     return {"nodes": list(nodes.values()), "edges": edges}
 
 

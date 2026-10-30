@@ -163,3 +163,12 @@ class UpdateCliTest(unittest.TestCase):
         from engine import update_cli
         self.assertEqual(update_cli.main(["rollback", "--target", str(self.tmp / "t"),
                                           "--state", str(self.tmp / "s")]), 2)
+
+
+class UpdateInPipelineTest(unittest.TestCase):
+    def test_update_without_key_is_refused(self):
+        from engine import __main__ as cli
+        tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(lambda: __import__("shutil").rmtree(tmp, ignore_errors=True))
+        self.assertEqual(cli.main(["--project-dir", str(tmp), "--update-dir", str(tmp),
+                                   "--output-dir", str(tmp / "out"), "--no-comment"]), 2)

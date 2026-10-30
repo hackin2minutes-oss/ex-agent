@@ -29,6 +29,14 @@ inputs:
   offline:
     description: Skip OSV, EPSS, KEV and fix-commit lookups
     default: "false"
+  update-dir:
+    description: Signed update directory (manifest.json, manifest.json.sig and files). Empty to skip.
+    required: false
+    default: ""
+  update-key:
+    description: Path to the pinned publisher public key (Ed25519 PEM). Required when update-dir is set.
+    required: false
+    default: ""
   build-command:
     description: "Build command for the CodeQL database (default: CodeQL autobuild)"
     required: false
@@ -53,6 +61,10 @@ runs:
     - ${{ inputs.fail-on }}
     - --build-command
     - ${{ inputs.build-command }}
+    - --update-dir
+    - ${{ inputs.update-dir }}
+    - --update-key
+    - ${{ inputs.update-key }}
     - --fix-diffs-dir
     - ${{ inputs.fix-diffs-dir }}
     - --offline
