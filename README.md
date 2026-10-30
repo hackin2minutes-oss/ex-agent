@@ -111,3 +111,5 @@ Options: `--fail-on confirmed_reachable|confirmed_exploitable`, `--codeql PATH`,
 
 `rules/CVE-XXXX-XXXX.json` and the `com.example` / `com.acme` coordinates are fictional.
 Replace them with real advisories before relying on any output.
+
+<!-- pull request CI check -->
