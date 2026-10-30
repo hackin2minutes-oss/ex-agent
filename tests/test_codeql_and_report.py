@@ -6,7 +6,7 @@ from pathlib import Path
 
 from engine import codeql, report, verdict
 
-TEMPLATE_ROOT = codeql.TEMPLATES_DIR
+TEMPLATE_ROOT = codeql.QUERIES_ROOT / "java" / "templates"
 
 
 class CodeqlTemplateTest(unittest.TestCase):
@@ -25,9 +25,23 @@ class CodeqlTemplateTest(unittest.TestCase):
             self.assertIn('hasName("parse")', taint)
             self.assertTrue((Path(tmp) / "pack" / "qlpack.yml").is_file())
 
-    def test_templates_exist(self):
-        self.assertTrue((TEMPLATE_ROOT / "call_site.ql.tmpl").is_file())
-        self.assertTrue((TEMPLATE_ROOT / "taint.ql.tmpl").is_file())
+    def test_templates_exist_for_each_language(self):
+        for language in ("java", "python"):
+            root = codeql.QUERIES_ROOT / language
+            self.assertTrue((root / "qlpack.yml").is_file(), language)
+            self.assertTrue((root / "templates" / "call_site.ql.tmpl").is_file(), language)
+            self.assertTrue((root / "templates" / "taint.ql.tmpl").is_file(), language)
+
+    def test_python_pack_renders_module_and_function(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            paths = codeql.render_pack(Path(tmp) / "pack", "yaml.load", "python")
+            text = paths["call_site"].read_text()
+            self.assertNotIn("{{", text)
+            self.assertIn('moduleImport("yaml").getMember("load")', text)
+            taint = paths["taint"].read_text()
+            self.assertIn("isFlaskRequestInput", taint)
+            self.assertNotIn("{{", taint)
 
 
 class SarifParseTest(unittest.TestCase):

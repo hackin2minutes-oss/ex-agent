@@ -30,7 +30,9 @@ _SEMVER = re.compile(
 
 MAVEN = "Maven"
 NPM = "npm"
-SUPPORTED_ECOSYSTEMS = {MAVEN, NPM}
+PYPI = "PyPI"
+SUPPORTED_ECOSYSTEMS = {MAVEN, NPM, PYPI}
+_PYPI_RELEASE = re.compile(r"^\d+(\.\d+)*$")
 
 
 def _maven_items(version: str) -> list[tuple]:
@@ -80,12 +82,26 @@ def _semver_compare(a: str, b: str) -> int | None:
     return (ka > kb) - (ka < kb)
 
 
+def _pypi_compare(a: str, b: str) -> int | None:
+    """PEP 440 release segments only (for example 5.3.1). Pre-, post- and dev releases are unsupported."""
+    if not (_PYPI_RELEASE.match(a) and _PYPI_RELEASE.match(b)):
+        return None
+    left = [int(n) for n in a.split(".")]
+    right = [int(n) for n in b.split(".")]
+    width = max(len(left), len(right))
+    left += [0] * (width - len(left))
+    right += [0] * (width - len(right))
+    return (left > right) - (left < right)
+
+
 def compare(ecosystem: str, a: str, b: str) -> int | None:
     """Return -1, 0 or 1, or None when the ecosystem or a version is unsupported."""
     if ecosystem == MAVEN:
         return _maven_compare(a, b)
     if ecosystem == NPM:
         return _semver_compare(a, b)
+    if ecosystem == PYPI:
+        return _pypi_compare(a, b)
     return None
 
 

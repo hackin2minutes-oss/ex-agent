@@ -1,0 +1,54 @@
+/**
+ * @name Remote input reaches {{PACKAGE}}.{{METHOD}}
+ * @description Data flow from remote input (Flask request attributes, or remote sources
+ *              known to CodeQL) to the first argument of a vulnerable library function.
+ * @id sawone/python-taint-{{ID}}
+ * @kind path-problem
+ * @problem.severity error
+ */
+
+import python
+import semmle.python.ApiGraphs
+import semmle.python.dataflow.new.DataFlow
+import semmle.python.dataflow.new.RemoteFlowSources
+import semmle.python.dataflow.new.TaintTracking
+
+// Flask request inputs. Listed explicitly so the query does not depend on CodeQL's
+// framework modelling for every Flask version.
+predicate isFlaskRequestInput(DataFlow::Node source) {
+  exists(Attribute a |
+    a.getObject().(Name).getId() = "request" and
+    (a.getName() = "args" or a.getName() = "form" or a.getName() = "values" or
+     a.getName() = "json" or a.getName() = "data" or a.getName() = "files") and
+    source.asExpr() = a
+  )
+  or
+  exists(Call c, Attribute a |
+    a = c.getFunc() and
+    a.getObject().(Name).getId() = "request" and
+    (a.getName() = "get_data" or a.getName() = "get_json") and
+    source.asExpr() = c
+  )
+}
+
+module VulnConfig implements DataFlow::ConfigSig {
+  predicate isSource(DataFlow::Node source) {
+    source instanceof RemoteFlowSource or isFlaskRequestInput(source)
+  }
+
+  predicate isSink(DataFlow::Node sink) {
+    exists(API::CallNode call |
+      call = API::moduleImport("{{PACKAGE}}").getMember("{{METHOD}}").getACall() and
+      sink = call.getArg(0)
+    )
+  }
+}
+
+module VulnFlow = TaintTracking::Global<VulnConfig>;
+
+import VulnFlow::PathGraph
+
+from VulnFlow::PathNode source, VulnFlow::PathNode sink
+where VulnFlow::flowPath(source, sink)
+select sink.getNode(), source, sink, "Remote input flows into {{PACKAGE}}.{{METHOD}}()",
+  source.getNode(), "remote input"

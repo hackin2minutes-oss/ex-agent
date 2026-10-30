@@ -128,6 +128,36 @@ jobs:
 
       - name: Verify taint positive control
         run: python3 -P scripts/verify_report.py codeql-control-report --mode codeql --expect-call-site --expect-taint confirmed --expect-classification reachable_preconditions_unknown
+
+      - name: Run engine on the Python vulnerable app
+        run: |
+          PYTHONPATH=. python3 -P -m engine \
+            --project-dir tests/fixtures/python-app \
+            --deps tests/fixtures/python-app/requirements.txt \
+            --rules-dir rules \
+            --output-dir codeql-python-report \
+            --codeql "$PWD/codeql/codeql" \
+            --fail-on confirmed_exploitable \
+            --offline true \
+            --no-comment
+
+      - name: Verify Python vulnerable app
+        run: python3 -P scripts/verify_report.py codeql-python-report --mode codeql --expect-call-site --expect-taint confirmed --expect-classification reachable_preconditions_unknown
+
+      - name: Run engine on the Python safe app
+        run: |
+          PYTHONPATH=. python3 -P -m engine \
+            --project-dir tests/fixtures/python-app-safe \
+            --deps tests/fixtures/python-app-safe/requirements.txt \
+            --rules-dir rules \
+            --output-dir codeql-python-safe-report \
+            --codeql "$PWD/codeql/codeql" \
+            --fail-on confirmed_exploitable \
+            --offline true \
+            --no-comment
+
+      - name: Verify Python safe app
+        run: python3 -P scripts/verify_report.py codeql-python-safe-report --mode codeql --expect-classification not_reachable_within_analysed_scope
       - name: Upload report
         if: always()
         uses: actions/upload-artifact@v7

@@ -1,0 +1,14 @@
+/**
+ * @name Call to {{PACKAGE}}.{{METHOD}}
+ * @description Finds application call sites of a vulnerable library function.
+ * @id sawone/python-call-{{ID}}
+ * @kind problem
+ * @problem.severity warning
+ */
+
+import python
+import semmle.python.ApiGraphs
+
+from API::CallNode call
+where call = API::moduleImport("{{PACKAGE}}").getMember("{{METHOD}}").getACall()
+select call.asExpr(), "Calls {{PACKAGE}}.{{METHOD}}()"

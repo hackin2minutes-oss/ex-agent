@@ -1,12 +1,14 @@
 """CodeQL runner for call-site and taint queries.
 
-Queries are templates in queries/java/templates/. For each vulnerable symbol the
-runner renders a call-site query and a taint query into a query pack, then runs
+Queries are templates under queries/<language>/templates/. For each vulnerable symbol
+the runner renders a call-site query and a taint query into a query pack, then runs
 them against a CodeQL database of the project.
 
-Unverified in this environment: the CodeQL CLI was not installed here, so the
-query templates and this runner have not been executed. Tests cover template
-rendering and SARIF parsing only.
+Supported languages: java (method symbols `package.Class.method`) and python
+(module symbols `module.function`).
+
+Unverified in this environment: the CodeQL CLI is not installed here. The queries
+run in CI only (see .github/workflows/ci.yml).
 """
 
 import json
@@ -15,8 +17,11 @@ import shutil
 import subprocess
 from pathlib import Path
 
-QUERIES_DIR = Path(__file__).resolve().parent.parent / "queries" / "java"
-TEMPLATES_DIR = QUERIES_DIR / "templates"
+QUERIES_ROOT = Path(__file__).resolve().parent.parent / "queries"
+LANGUAGES = {
+    "java": {"codeql": "java", "build": True},
+    "python": {"codeql": "python", "build": False},
+}
 
 
 def find_codeql(explicit: str | None = None) -> str | None:
@@ -25,24 +30,34 @@ def find_codeql(explicit: str | None = None) -> str | None:
     return shutil.which("codeql")
 
 
-def split_symbol(symbol: str) -> tuple[str, str, str]:
-    """`com.example.Parser.parse` → (`com.example`, `Parser`, `parse`)."""
+def split_symbol(symbol: str, language: str = "java") -> tuple[str, str, str]:
+    """Return (package, class, method). For python the class is empty and the package is the module."""
+    if language == "python":
+        module, function = symbol.rsplit(".", 1)
+        return module, "", function
     qualified_class, method = symbol.rsplit(".", 1)
     package, simple_class = qualified_class.rsplit(".", 1)
     return package, simple_class, method
 
 
-def render_pack(pack_dir: Path, symbol: str) -> dict[str, Path]:
+def _identifier(symbol: str) -> str:
+    return re.sub(r"\W", "_", symbol)
+
+
+def render_pack(pack_dir: Path, symbol: str, language: str = "java") -> dict[str, Path]:
     """Write the rendered queries for one symbol into a query pack and return their paths."""
-    package, simple_class, method = split_symbol(symbol)
-    ident = re.sub(r"\W", "_", symbol)
+    if language not in LANGUAGES:
+        raise ValueError(f"unsupported language: {language}")
+    root = QUERIES_ROOT / language
+    package, simple_class, method = split_symbol(symbol, language)
+    ident = _identifier(symbol)
     values = {"PACKAGE": package, "CLASS": simple_class, "METHOD": method, "ID": ident}
 
     pack_dir.mkdir(parents=True, exist_ok=True)
-    shutil.copy(QUERIES_DIR / "qlpack.yml", pack_dir / "qlpack.yml")
+    shutil.copy(root / "qlpack.yml", pack_dir / "qlpack.yml")
     paths = {}
     for kind in ("call_site", "taint"):
-        text = (TEMPLATES_DIR / f"{kind}.ql.tmpl").read_text(encoding="utf-8")
+        text = (root / "templates" / f"{kind}.ql.tmpl").read_text(encoding="utf-8")
         for key, value in values.items():
             text = text.replace("{{" + key + "}}", value)
         path = pack_dir / f"{kind}_{ident}.ql"
@@ -51,11 +66,12 @@ def render_pack(pack_dir: Path, symbol: str) -> dict[str, Path]:
     return paths
 
 
-def build_database(codeql: str, project_dir: Path, db_dir: Path, build_command: str | None) -> None:
+def build_database(codeql: str, project_dir: Path, db_dir: Path, language: str = "java",
+                   build_command: str | None = None) -> None:
     db_dir.parent.mkdir(parents=True, exist_ok=True)  # CodeQL does not create the parent directory
-    command = [codeql, "database", "create", str(db_dir), "--language=java",
+    command = [codeql, "database", "create", str(db_dir), f"--language={LANGUAGES[language]['codeql']}",
                f"--source-root={project_dir}", "--overwrite"]
-    if build_command:
+    if build_command and LANGUAGES[language]["build"]:
         command.append(f"--command={build_command}")
     subprocess.run(command, check=True, capture_output=True, text=True)
 
@@ -86,11 +102,11 @@ def parse_sarif(path: Path, source_root: Path) -> list[dict]:
 
 
 def analyse_symbol(codeql: str, db_dir: Path, pack_dir: Path, symbol: str,
-                   source_root: Path) -> dict:
-    paths = render_pack(pack_dir, symbol)
+                   source_root: Path, language: str = "java") -> dict:
+    paths = render_pack(pack_dir, symbol, language)
     subprocess.run([codeql, "pack", "install", str(pack_dir)], check=True,
                    capture_output=True, text=True)
-    ident = re.sub(r"\W", "_", symbol)
+    ident = _identifier(symbol)
     call_sarif = pack_dir / f"call_site_{ident}.sarif"
     taint_sarif = pack_dir / f"taint_{ident}.sarif"
     run_query(codeql, db_dir, paths["call_site"], call_sarif)

@@ -49,3 +49,26 @@ def access_control_hints(source_root: Path, limit: int = 20) -> list[dict]:
                 if len(hits) >= limit:
                     return hits
     return hits
+
+
+_PY_ROUTE = re.compile(
+    r'@(?P<owner>\w+)\.(?P<kind>route|get|post|put|delete|patch)\(\s*["\'](?P<route>[^"\']*)["\']'
+)
+
+
+def find_python_entry_points(source_root: Path) -> list[dict]:
+    """Flask (`@app.route`) and FastAPI (`@app.get` and similar) route decorators."""
+    entry_points = []
+    for path in sorted(source_root.rglob("*.py")):
+        text = path.read_text(encoding="utf-8", errors="replace")
+        if "flask" not in text.lower() and "fastapi" not in text.lower():
+            continue
+        for lineno, line in enumerate(text.splitlines(), 1):
+            for match in _PY_ROUTE.finditer(line):
+                entry_points.append({
+                    "file": str(path.relative_to(source_root)),
+                    "line": lineno,
+                    "kind": match.group("kind").upper(),
+                    "route": match.group("route") or "/",
+                })
+    return entry_points

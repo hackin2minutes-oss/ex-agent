@@ -55,10 +55,22 @@ class SemverTest(unittest.TestCase):
         self.assertIsNone(self.cmp("1.0", "1.0.0"))
 
 
+class PyPiVersionTest(unittest.TestCase):
+    def test_release_segments_compare_numerically(self):
+        self.assertEqual(versions.compare("PyPI", "5.10", "5.9"), 1)
+        self.assertEqual(versions.compare("PyPI", "5.1", "5.1.0"), 0)
+        self.assertTrue(versions.is_affected("PyPI", "5.0.0", "0", "5.1"))
+        self.assertFalse(versions.is_affected("PyPI", "5.3.1", "0", "5.1"))
+        self.assertFalse(versions.is_affected("PyPI", "5.1", "0", "5.1"))
+
+    def test_pre_releases_are_unsupported(self):
+        self.assertIsNone(versions.compare("PyPI", "5.1rc1", "5.1"))
+
+
 class UnsupportedTest(unittest.TestCase):
     def test_other_ecosystems_are_unsupported(self):
-        self.assertIsNone(versions.compare("PyPI", "1.0", "2.0"))
-        self.assertIsNone(versions.is_affected("PyPI", "1.0", "0", "2.0"))
+        self.assertIsNone(versions.compare("Go", "1.0", "2.0"))
+        self.assertIsNone(versions.is_affected("RubyGems", "1.0", "0", "2.0"))
 
 
 class RangeTest(unittest.TestCase):

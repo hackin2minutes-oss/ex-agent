@@ -121,6 +121,11 @@ def collect_candidates(deps: list[dict], rules: list[dict], intel) -> dict:
     return candidates
 
 
+def cand_language(cand: dict) -> str:
+    """Curated rules name their language. Symbols derived from fix commits are Java."""
+    return cand["curated"].get("language", "java") if cand["curated"] else "java"
+
+
 def _sha(commit_url: str) -> str:
     return commit_url.rstrip("/").rsplit("/", 1)[-1]
 
@@ -193,11 +198,13 @@ def analyse_candidate(cand: dict, project_dir: Path, ctx: dict) -> dict:
     hits: list[dict] = []
     taint_flows: list[dict] = []
     mode = "text_scan"
-    if ctx["codeql_bin"] and ctx["db_dir"] and symbol_names:
+    language = cand_language(cand)
+    database = ctx["codeql_dbs"].get(language)
+    if ctx["codeql_bin"] and database and symbol_names:
         try:
             for symbol in symbol_names:
-                result = codeql.analyse_symbol(ctx["codeql_bin"], ctx["db_dir"], ctx["pack_dir"],
-                                               symbol, project_dir)
+                result = codeql.analyse_symbol(ctx["codeql_bin"], database[0], database[1],
+                                               symbol, project_dir, language)
                 for item in result["call_sites"]:
                     hits.append({**item, "symbol": symbol})
                 taint_flows.extend(result["taint_flows"])
@@ -208,7 +215,8 @@ def analyse_candidate(cand: dict, project_dir: Path, ctx: dict) -> dict:
 
     if mode == "text_scan":
         for symbol in symbol_names:
-            hits.extend({**item, "symbol": symbol} for item in callsites.scan_call_sites(project_dir, symbol))
+            hits.extend({**item, "symbol": symbol}
+                        for item in callsites.scan_call_sites(project_dir, symbol, language))
 
     if taint_flows:
         taint = verdict.TAINT_CONFIRMED
@@ -222,7 +230,7 @@ def analyse_candidate(cand: dict, project_dir: Path, ctx: dict) -> dict:
 
     pre_status, pre_details = preconditions.evaluate(
         cand["curated"]["preconditions"] if cand["curated"] else None, project_dir)
-    entry_points = context.find_entry_points(project_dir)
+    entry_points = context.find_entry_points(project_dir) + context.find_python_entry_points(project_dir)
     auth_hints = context.access_control_hints(project_dir)
 
     nvd = cand.get("nvd")
@@ -333,17 +341,19 @@ def run(project_dir: Path, deps_path: Path | None, rules_dir: Path, output_dir: 
 
     notes: list[str] = []
     codeql_bin = codeql.find_codeql(codeql_path)
-    db_dir = pack_dir = None
+    codeql_dbs: dict[str, tuple[Path, Path]] = {}
     if codeql_bin is None:
         notes.append("CodeQL CLI not found; call sites use the text-scan fallback")
     elif candidates:
-        work = output_dir / "codeql-work"
-        db_dir, pack_dir = work / "db", work / "pack"
-        try:
-            codeql.build_database(codeql_bin, project_dir, db_dir, build_command)
-        except (subprocess.CalledProcessError, OSError) as exc:
-            notes.append(f"CodeQL database creation failed, text-scan fallback used: {_failure_text(exc)}")
-            db_dir = None
+        for language in sorted({cand_language(c) for c in candidates.values()}):
+            work = output_dir / "codeql-work" / language
+            db_dir, pack_dir = work / "db", work / "pack"
+            try:
+                codeql.build_database(codeql_bin, project_dir, db_dir, language, build_command)
+                codeql_dbs[language] = (db_dir, pack_dir)
+            except (subprocess.CalledProcessError, OSError) as exc:
+                notes.append(f"CodeQL database creation failed for {language}, "
+                             f"text-scan fallback used: {_failure_text(exc)}")
 
     ctx = {
         "intel": intel,
@@ -351,8 +361,7 @@ def run(project_dir: Path, deps_path: Path | None, rules_dir: Path, output_dir: 
         "epss": epss,
         "kev": kev,
         "codeql_bin": codeql_bin,
-        "db_dir": db_dir,
-        "pack_dir": pack_dir,
+        "codeql_dbs": codeql_dbs,
         "reflection": callsites.reflection_indicators(project_dir),
     }
 

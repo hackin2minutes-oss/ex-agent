@@ -73,7 +73,7 @@ class RangeTest(unittest.TestCase):
         self.assertFalse(advisories.evaluate_range("Maven", "1.9.9", ">= 2.0.0, < 2.4.1"))
 
     def test_unsupported_ecosystem_or_syntax_is_none(self):
-        self.assertIsNone(advisories.evaluate_range("PyPI", "1.0", "< 2.0"))
+        self.assertIsNone(advisories.evaluate_range("Go", "1.0", "< 2.0"))
         self.assertIsNone(advisories.evaluate_range("npm", "1.0.0", "~> 1.0"))
         self.assertIsNone(advisories.evaluate_range("npm", "1.0.0", ""))
 
