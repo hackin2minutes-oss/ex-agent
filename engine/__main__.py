@@ -3,7 +3,7 @@ import os
 import sys
 from pathlib import Path
 
-from engine import pipeline, report, updates
+from engine import findings as scanner_findings, pipeline, report, updates
 
 FAIL_ON_CHOICES = ["confirmed_reachable", "confirmed_exploitable"]
 EXPOSURE_CHOICES = ["internet", "internal", "unknown"]
@@ -42,6 +42,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--policy", type=_optional_path, default=None,
                         help="Policy file (YAML). When given, it decides the gate instead of --fail-on.")
     parser.add_argument("--no-comment", action="store_true", help="Do not post a pull request comment")
+    parser.add_argument("--findings", type=_optional_path, default=None,
+                        help="Scanner export to analyse: Trivy JSON, Grype JSON or OSV-scanner JSON")
     parser.add_argument("--update-dir", type=_optional_path, default=None,
                         help="Signed update directory to verify and install before analysis")
     parser.add_argument("--update-key", type=_optional_path, default=None,
@@ -50,6 +52,14 @@ def main(argv: list[str] | None = None) -> int:
                         default=Path(".exploitability-cache/updates/current"),
                         help="Where the installed update lives. Its rules/ directory is used for analysis.")
     args = parser.parse_args(argv)
+
+    imported = None
+    if args.findings:
+        detected = scanner_findings.detect(args.findings.read_text(encoding="utf-8"))
+        if detected is None:
+            parser.error("--findings: not a supported scanner export (Trivy JSON, Grype JSON, OSV-scanner JSON)")
+        imported = scanner_findings.merge_findings(detected[1])
+        print(f"imported {len(detected[1])} finding(s) from {detected[0]}, {len(imported)} after merging")
 
     rules_dir = args.rules_dir
     if args.update_dir is not None:
@@ -70,7 +80,7 @@ def main(argv: list[str] | None = None) -> int:
         args.project_dir, args.deps, rules_dir, args.output_dir, args.fail_on,
         offline=args.offline, cache_dir=args.cache_dir, fix_diffs_dir=args.fix_diffs_dir,
         codeql_path=args.codeql or None, build_command=args.build_command or None,
-        policy_path=args.policy, exposure=args.exposure,
+        policy_path=args.policy, exposure=args.exposure, imported_findings=imported,
     )
 
     markdown = (args.output_dir / "report.md").read_text(encoding="utf-8")

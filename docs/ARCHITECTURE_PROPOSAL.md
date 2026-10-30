@@ -1,6 +1,6 @@
 # Architecture proposal: from CVE checker to exploitability engine
 
-Status: proposal. Phase 1 is implemented in this branch. Phases 2 to 7 are not started.
+Status: Phase 1 is implemented and connected to the pipeline through `--findings`, which is not yet exposed in `action.yml`. Trivy and Grype parsers are not checked against real exports. Phases 2 to 7 are not started. See `docs/PHASE1_COMPLETION_REPORT.md`.
 
 ## 1. What exists today (from reading the code)
 
@@ -40,7 +40,7 @@ Source tree ──────► L2 Usage inventory ◄──────┘  (
 ```
 
 ### L1 Ingestion and normalisation (Phase 1)
-- Inputs: Trivy JSON, Grype JSON, OSV-scanner JSON. CycloneDX and SPDX already exist. SARIF from Trivy is deferred until a real sample has been checked.
+- Inputs: Trivy JSON, Grype JSON, OSV-scanner JSON. CycloneDX and SPDX already exist. SARIF from Trivy is deferred until a real sample has been checked. The OSV parser was checked against a real export; Trivy and Grype were not.
 - One model per finding: identifiers and aliases, ecosystem, package name, installed version, fixed version, severity, CVSS, references, and provenance (which scanner, which target file).
 - Deduplication merges findings for the same package and version when their identifiers overlap. Every source is kept in a list.
 - EPSS and KEV are left for the enrichment step, which already exists in `intel.py`.
@@ -78,7 +78,7 @@ UNKNOWN, ANALYSIS_FAILED and incomplete analysis are never turned into a safe ve
 
 | Phase | Deliverable | Testable here | Depends on |
 |---|---|---|---|
-| 1 | L1: normalisation of Trivy JSON, Grype JSON, OSV JSON; dedup with provenance | Yes, with fixtures | Nothing |
+| 1 | L1: normalisation of Trivy JSON, Grype JSON, OSV JSON; dedup with provenance; connected to the pipeline via `--findings`. Done except Trivy and Grype real-export checks and the `action.yml` input | Yes, with fixtures and a real OSV export | Nothing |
 | 2 | L2: usage inventory for Python first | Yes, with fixtures | Phase 1 |
 | 3 | L3: generic reachability using the Python call graph; Java and JavaScript via CodeQL | Partly. CodeQL is not available here | Phase 2 |
 | 4 | L4: sink-class dataflow queries | Partly. CodeQL not available here | Phase 3 |

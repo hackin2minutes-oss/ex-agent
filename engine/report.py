@@ -42,6 +42,12 @@ def _incomplete_notifications(analysis: dict) -> list[dict]:
     return notes
 
 
+def _imported_note(finding: dict) -> str:
+    """Name the scanners that reported the finding, when it was imported rather than discovered."""
+    scanners = sorted({s["scanner"] for s in finding["vulnerability"].get("scanner_sources", [])})
+    return f" [reported by: {', '.join(scanners)}]" if scanners else ""
+
+
 def to_sarif(findings: list[dict], tool_version: str, analysis: dict | None = None) -> dict:
     rules = {}
     results = []
@@ -62,7 +68,8 @@ def to_sarif(findings: list[dict], tool_version: str, analysis: dict | None = No
             "level": SARIF_LEVEL.get(finding["verdict"], "note"),
             "message": {"text": f"{finding['library']}:{finding['dependency']['version']} - "
                                 f"{finding['verdict']} (reachability: {finding['reachability']}, "
-                                f"preconditions: {finding['preconditions']})"},
+                                f"preconditions: {finding['preconditions']})"
+                                + _imported_note(finding)},
             "locations": [{"physicalLocation": {
                 "artifactLocation": {"uri": uri},
                 "region": {"startLine": line},

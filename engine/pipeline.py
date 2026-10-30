@@ -10,7 +10,7 @@ from pathlib import Path
 
 from pathlib import Path
 
-from engine import advisories, callgraph, callsites, codeql, context, exploitability as xp, ingest, intel as intel_module
+from engine import advisories, callgraph, callsites, codeql, context, exploitability as xp, findings as scanner_findings, ingest, intel as intel_module
 from engine import policy, preconditions, report, symbols, verdict, versions
 
 SHIPPED_SCOPE_EXCLUDED = {"test", "dev"}
@@ -272,6 +272,63 @@ def analysis_summary(ctx: dict, findings: list[dict]) -> dict:
     }
 
 
+def add_imported_findings(candidates: dict, imported: list[dict], deps: list[dict],
+                          rules: list[dict]) -> tuple[dict, int]:
+    """Add scanner findings (merged by engine/findings.py) to the candidates.
+
+    An imported finding becomes the same candidate shape as an OSV, GHSA or curated match.
+    The scanner's claim that this version is affected is version evidence, and it is recorded
+    with the scanner's name. A curated rule that says the version is not affected conflicts
+    with the scanner, so the status is UNKNOWN, as it is for the other sources. Findings for an
+    unknown ecosystem cannot be analysed and are counted, not guessed at. Returns
+    (candidates, skipped_count).
+    """
+    skipped = 0
+    for item in imported:
+        if item["ecosystem"] == scanner_findings.UNKNOWN_ECOSYSTEM:
+            skipped += 1
+            continue
+        cve = next((i for i in item["ids"] if scanner_findings.CVE_RE.match(i)), None)
+        vuln_id = item["primary_id"]
+        dep = next((d for d in deps if scanner_findings._identity(d) == scanner_findings._identity(item)),
+                   None)
+        if dep is None:
+            target = item["sources"][0].get("target") or "scanner-import"
+            dep = ingest.make_dependency(item["ecosystem"], item["name"], item["version"], "runtime",
+                                         ["scanner-import"], target)
+        rule = next((r for r in rules if cve and r["cve"] == cve and r["library"] == dep["name"]
+                     and r.get("ecosystem", "Maven") == dep["ecosystem"]), None)
+        key = (_cve_or_id(vuln_id, cve), dep["ecosystem"], dep["name"], dep["version"])
+        scanners = [s for s in item["sources"]]
+        if key in candidates:
+            cand = candidates[key]
+            cand["aliases"] = list(dict.fromkeys(cand["aliases"] + item["ids"]))
+            cand["fix_commits"] = list(dict.fromkeys(cand["fix_commits"] + [
+                c for s in scanners for c in s.get("fix_commits", [])]))
+            cand["sources"] = cand["sources"] + ["scanner"]
+            cand["scanner_sources"] = scanners
+            if cand["version_status"] == xp.NOT_CONFIRMED:
+                cand["version_status"] = xp.UNKNOWN
+                cand["conflict"] = True
+                cand["conflict_detail"] = "scanner reports this version affected; curated range says not affected"
+            continue
+        candidates[key] = {
+            "key": key,
+            "cve": cve,
+            "vuln_id": vuln_id,
+            "aliases": item["ids"],
+            "summary": item["summary"],
+            "fix_commits": [c for s in scanners for c in s.get("fix_commits", [])],
+            "dependency": dep,
+            "curated": rule,
+            "sources": ["scanner"],
+            "scanner_sources": scanners,
+            # The scanner reported this installed version as affected.
+            "version_status": xp.CONFIRMED,
+        }
+    return candidates, skipped
+
+
 def analyse_candidate(cand: dict, project_dir: Path, ctx: dict) -> dict:
     dep = cand["dependency"]
     symbol_names, symbol_source = candidate_symbols(cand, ctx["intel"], ctx["fix_diffs_dir"])
@@ -336,6 +393,7 @@ def analyse_candidate(cand: dict, project_dir: Path, ctx: dict) -> dict:
     final_verdict = xp.legacy_verdict(classification)
 
     vuln = {
+        "scanner_sources": cand.get("scanner_sources", []),
         "id": cand["vuln_id"],
         "cve": cand["cve"],
         "aliases": cand["aliases"],
@@ -419,13 +477,16 @@ def run(project_dir: Path, deps_path: Path | None, rules_dir: Path, output_dir: 
         *, offline: bool = False, cache_dir: Path | None = None, fix_diffs_dir: Path | None = None,
         codeql_path: str | None = None, build_command: str | None = None,
         intel: intel_module.Intel | None = None, policy_path: Path | None = None,
-        exposure: str = "unknown") -> dict:
+        exposure: str = "unknown", imported_findings: list[dict] | None = None) -> dict:
     deps = [d for d in ingest.resolve(project_dir, deps_path)
             if d["scope"] not in SHIPPED_SCOPE_EXCLUDED]
     rules = symbols.load_rules(rules_dir)
     intel = intel or intel_module.Intel(cache_dir=cache_dir, offline=offline)
 
     candidates = collect_candidates(deps, rules, intel)
+    imported_skipped = 0
+    if imported_findings:
+        candidates, imported_skipped = add_imported_findings(candidates, imported_findings, deps, rules)
     cves = [c["cve"] for c in candidates.values() if c["cve"]]
     epss = intel.epss_scores(cves) if cves else {}
     kev = intel.kev_cves() if cves else None
@@ -435,6 +496,8 @@ def run(project_dir: Path, deps_path: Path | None, rules_dir: Path, output_dir: 
     unresolved = sum(1 for d in deps if d["ecosystem"] == "unknown")
 
     notes: list[str] = []
+    if imported_skipped:
+        notes.append(f"{imported_skipped} imported scanner finding(s) skipped: ecosystem not supported for analysis")
     codeql_bin = codeql.find_codeql(codeql_path)
     codeql_dbs: dict[str, tuple[Path, Path]] = {}
     if codeql_bin is None:
