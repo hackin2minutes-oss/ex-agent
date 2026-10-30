@@ -10,7 +10,7 @@ from pathlib import Path
 
 from pathlib import Path
 
-from engine import advisories, callsites, codeql, context, exploitability as xp, ingest, intel as intel_module
+from engine import advisories, callgraph, callsites, codeql, context, exploitability as xp, ingest, intel as intel_module
 from engine import policy, preconditions, report, symbols, verdict, versions
 
 SHIPPED_SCOPE_EXCLUDED = {"test", "dev"}
@@ -191,6 +191,21 @@ def derive_stages(*, cand: dict, symbol_names: list[str], mode: str, codeql_requ
     }
 
 
+def _python_call_paths(hits: list[dict], project_dir: Path, ctx: dict) -> list[dict]:
+    """Entry-point paths to the functions that contain the vulnerable Python call sites."""
+    python_hits = [h for h in hits if str(h.get("file", "")).endswith(".py")]
+    if not python_hits:
+        return []
+    if "python_graph" not in ctx:
+        ctx["python_graph"] = callgraph.build(project_dir)
+    graph = ctx["python_graph"]
+    targets = {callgraph.enclosing_function(graph, h["file"], h["line"]) for h in python_hits}
+    targets.discard(None)
+    return [{"entry": path[0], "route": graph.nodes[path[0]]["route"], "path": path,
+             "edges": [e for e in graph.edges if e["from"] in path and e["to"] in path]}
+            for path in callgraph.paths_to(graph, targets)]
+
+
 def analyse_candidate(cand: dict, project_dir: Path, ctx: dict) -> dict:
     dep = cand["dependency"]
     symbol_names, symbol_source = candidate_symbols(cand, ctx["intel"], ctx["fix_diffs_dir"])
@@ -231,6 +246,7 @@ def analyse_candidate(cand: dict, project_dir: Path, ctx: dict) -> dict:
 
     pre_status, pre_details = preconditions.evaluate(
         cand["curated"]["preconditions"] if cand["curated"] else None, project_dir)
+    call_paths = _python_call_paths(hits, project_dir, ctx)
     entry_points = (context.find_entry_points(project_dir) + context.find_python_entry_points(project_dir)
                     + context.find_javascript_entry_points(project_dir)
                     + context.find_go_entry_points(project_dir))
@@ -258,10 +274,10 @@ def analyse_candidate(cand: dict, project_dir: Path, ctx: dict) -> dict:
         "cve": cand["cve"],
         "aliases": cand["aliases"],
         "summary": cand["summary"],
-        "severity": cand["curated"]["severity"] if cand["curated"] else
+        "severity": (cand["curated"] or {}).get("severity") or
                     ((nvd or {}).get("severity") or ((cand.get("ghsa") or {}).get("severity") or "")).upper() or None,
-        "cvss": cand["curated"]["cvss"] if cand["curated"] else
-                (nvd or {}).get("cvss_score") or (cand.get("ghsa") or {}).get("cvss_score"),
+        "cvss": (cand["curated"] or {}).get("cvss") or (nvd or {}).get("cvss_score")
+                or (cand.get("ghsa") or {}).get("cvss_score"),
         "cwes": (nvd or {}).get("cwes", []),
         "references": sorted(set((nvd or {}).get("references", []))
                              | set((cand.get("ghsa") or {}).get("references", []))),
@@ -284,6 +300,8 @@ def analyse_candidate(cand: dict, project_dir: Path, ctx: dict) -> dict:
         {"type": "access_control", "result": "hints_present" if auth_hints else "not_found",
          "locations": auth_hints, "note": "Informational. Does not change the verdict."},
         {"type": "taint_path", "result": taint, "locations": _taint_locations(taint_flows)},
+        {"type": "call_paths", "result": "confirmed" if call_paths else "not_found", "paths": call_paths,
+         "method": "python-ast name resolution (bounded, cycle-free)"},
         {"type": "preconditions", "result": pre_status, "checks": pre_details},
         {"type": "configuration", "result": config_status, "checks": config_details},
     ]

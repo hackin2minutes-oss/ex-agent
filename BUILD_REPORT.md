@@ -14,12 +14,12 @@ Status codes: PASS (verified), FAIL (tested and failing), NOT TESTED (not verifi
 | Transitive dependencies analysed | PARTIAL | Maven tree and npm lockfile carry transitive paths. Not tested against a deep real tree. |
 | SBOM ingestion works | PARTIAL | CycloneDX and SPDX JSON fixtures. XML not supported. |
 | Advisory normalisation works | PARTIAL | GHSA and NVD normalised from recorded responses. Live GHSA not tested (needs token). NVD live tested. |
-| Vulnerable symbol mapping works where supported | PARTIAL | Curated symbols (Java, Python). Fix-commit derivation tested with synthetic diffs only. |
-| Call graph generated for declared languages | NOT TESTED | Only entry points, call sites and taint edges. No graph model. |
+| Vulnerable symbol mapping works where supported | PARTIAL | Curated symbols (Java, Python, JavaScript, Go). Fix-commit derivation tested with synthetic diffs only. |
+| Call graph generated for declared languages | PARTIAL | Python: ast-based graph with bounded, cycle-free paths (tests/test_callgraph_and_config.py). Other languages: CodeQL call sites and taint edges only. |
 | Entry points identified where supported | PARTIAL | Spring MVC and Flask/FastAPI decorators. Tested on fixtures. |
 | Source-to-sink analysis works for implemented rules | PASS | CodeQL Java and Python taint confirmed on fixtures in CI. |
 | CVE preconditions evaluated where signatures exist | PARTIAL | Text patterns for two rules. Not runtime configuration. |
-| Configuration evidence recorded | NOT TESTED | Not implemented. |
+| Configuration evidence recorded | PARTIAL | Rule configuration checks feed stage I. One shipped rule (Werkzeug debugger). |
 | Mitigations evaluated where supported | PARTIAL | Text patterns (`mitigated_by`) only. |
 | Verdicts follow documented evidence requirements | PASS | Table tests in tests/test_exploitability.py. |
 | Unknown is not treated as unreachable | PASS | Tests for UNKNOWN, ANALYSIS_FAILED and reflection. |

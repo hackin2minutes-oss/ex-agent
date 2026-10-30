@@ -15,7 +15,8 @@
 - Taint analysis does not model library-internal calls. Calls made inside the vulnerable library are not analysed.
 - Reflection, dynamic class loading and framework-invoked code can make a call graph incomplete. Reflection indicators are detected by text pattern and reported; they block `not_reachable_within_analysed_scope`.
 - Preconditions and mitigations are static text checks. They do not read runtime configuration.
-- Configuration analysis (stage I) and inclusion analysis (stage C) are not implemented.
+- Configuration (stage I) is evaluated from rule configuration checks; one shipped rule (Werkzeug debugger, CVE-2024-34069) uses it. Inclusion (stage C) is not implemented.
+- The Python call graph (`engine/callgraph.py`) resolves calls by name, using the ast module. Attribute calls on objects are recorded as unresolved, not followed. No call graph is built for other languages.
 - The vulnerable-symbol rule set has one placeholder CVE (`CVE-XXXX-XXXX`) that is not a real advisory.
 
 ## Intelligence

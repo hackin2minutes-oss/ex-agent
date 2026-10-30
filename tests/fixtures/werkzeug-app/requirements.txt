@@ -1,0 +1,2 @@
+# Werkzeug 2.3.0 is before the 3.0.3 fix for CVE-2024-34069.
+Werkzeug==2.3.0
