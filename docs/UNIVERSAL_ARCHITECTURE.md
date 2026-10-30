@@ -215,7 +215,15 @@ Taken by the project owner. Each one is implemented as stated.
   download is blocked) and the Trivy vulnerability scan, for the same database reason. The wrapper
   Action input is not added: it needs a new image, and publishing an image needs the production
   environment approval.
-- Not done: DAST, IAST and RASP. See the section on DAST for what is planned and what is not.
+- DAST (Nuclei): `engine/nuclei_adapter.py` reads Nuclei's JSON export (`-je`). Nuclei's JSONL output
+  hangs in the build tested (v3.3.7). The engine (`engine/dast.py`) sends no traffic. It reads the
+  recorded exchange, and checks whether a decoded request parameter appears verbatim in the response.
+  A verbatim reflection gives POTENTIALLY_EXPLOITABLE with HIGH confidence. It never gives
+  CONFIRMED_EXPLOITABLE: one recorded path does not prove every path. An encoded or absent value gives
+  UNKNOWN, never NOT_EXPLOITABLE. The fixture is a real export from a local target
+  (`tests/fixtures/dast/target.py`, 127.0.0.1 only) with a local template.
+- Not done: IAST and RASP. No runtime agent output is available here, and a made-up format would not
+  be real input. See section 5 for the requirements.
 
 ## 9. Not claimed
 

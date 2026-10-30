@@ -15,8 +15,10 @@ from engine import report, universal, universal_report
 from engine.checkov_adapter import CheckovAdapter
 from engine.cicd import CicdEngine
 from engine.container import ContainerEngine
+from engine.dast import DastEngine
 from engine.gitleaks_adapter import GitleaksAdapter
 from engine.hadolint_adapter import HadolintAdapter
+from engine.nuclei_adapter import NucleiAdapter
 from engine.iac import IacEngine
 from engine.sast import SastEngine
 from engine.secrets_engine import SecretsEngine
@@ -42,11 +44,13 @@ def build_registry() -> Registry:
     registry.register_adapter(GitleaksAdapter())
     registry.register_adapter(TrivyConfigAdapter())
     registry.register_adapter(HadolintAdapter())
+    registry.register_adapter(NucleiAdapter())
     registry.register_engine(SastEngine())
     registry.register_engine(IacEngine())
     registry.register_engine(CicdEngine())
     registry.register_engine(SecretsEngine())
     registry.register_engine(ContainerEngine())
+    registry.register_engine(DastEngine())
     return registry
 
 
