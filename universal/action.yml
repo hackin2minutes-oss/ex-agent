@@ -1,0 +1,70 @@
+# SAWONE universal exploitability action. Accepts scanner reports from several tools in one run and
+# assesses them with the universal engine (SCA, SAST, IaC, container, CI/CD, secrets, DAST, IAST, RASP).
+# The existing SCA action is action.yml at the repository root and is unchanged.
+name: SAWONE Universal Exploitability
+description: >
+  Assesses findings from several security scanners (SAST, SCA, IaC, container, CI/CD, secrets, DAST,
+  IAST, RASP) for exploitability, and reports one verdict per finding with its evidence.
+inputs:
+  reports:
+    description: >
+      Scanner reports, one path per line or comma-separated, relative to the workspace. Supported:
+      Semgrep JSON, Trivy config JSON, Trivy vulnerability JSON, Grype JSON, OSV-Scanner JSON,
+      Checkov JSON, Zizmor JSON, Gitleaks JSON, Hadolint JSON, Nuclei JSON export, and SAWONE
+      IAST/RASP evidence (sawone.iast/1, sawone.rasp/1).
+    required: true
+  project-dir:
+    description: Project root that the reports' paths are relative to, relative to the workspace
+    default: "."
+  output-dir:
+    description: Where reports are written (universal-findings.json, universal.sarif, universal-report.md, sca/)
+    default: "universal-report"
+  exposure:
+    description: "Declared exposure: internet, internal or unknown. confirmed_exploitable needs internet."
+    default: "unknown"
+  fail-on:
+    description: "confirmed_exploitable (default) or potentially_exploitable"
+    default: "confirmed_exploitable"
+  offline:
+    description: "true to skip advisory and intelligence lookups for the SCA path"
+    default: "true"
+  rules-dir:
+    description: Curated SCA rules directory, relative to the image
+    default: "rules"
+  timeout-seconds:
+    description: Wall-clock limit for the whole run. 0 disables it.
+    default: "600"
+  max-report-bytes:
+    description: A report larger than this is skipped with a diagnostic
+    default: "50000000"
+  max-records:
+    description: A report with more records than this is refused
+    default: "20000"
+runs:
+  using: docker
+  image: ../Dockerfile
+  entrypoint: python3
+  args:
+    - -P
+    - -m
+    - engine.universal_run
+    - --inputs
+    - ${{ inputs.reports }}
+    - --project-dir
+    - ${{ inputs.project-dir }}
+    - --output-dir
+    - ${{ inputs.output-dir }}
+    - --exposure
+    - ${{ inputs.exposure }}
+    - --fail-on
+    - ${{ inputs.fail-on }}
+    - --offline
+    - ${{ inputs.offline }}
+    - --rules-dir
+    - ${{ inputs.rules-dir }}
+    - --timeout-seconds
+    - ${{ inputs.timeout-seconds }}
+    - --max-report-bytes
+    - ${{ inputs.max-report-bytes }}
+    - --max-records
+    - ${{ inputs.max-records }}

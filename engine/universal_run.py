@@ -19,6 +19,7 @@ engine there. Neither changes `run`.
 
 import argparse
 import json
+import signal
 import sys
 from pathlib import Path
 
@@ -42,6 +43,11 @@ from engine.universal import EXPOSURES, ModelError, Registry
 from engine.zizmor_adapter import ZizmorAdapter
 
 TOOL_VERSION = "0.1.0"
+# Resource budgets. A report over a budget is skipped with a diagnostic, not read.
+MAX_REPORT_BYTES = 50_000_000
+MAX_RECORDS = 20_000
+DEFAULT_TIMEOUT_SECONDS = 600
+EXIT_TIMEOUT = 3
 DEFAULT_RULES = Path(__file__).resolve().parent.parent / "rules"
 # Verdicts that fail the gate. CONFIRMED_EXPLOITABLE is the default. POTENTIALLY_EXPLOITABLE is
 # stricter, for a team that wants a build to stop on any unresolved potential.
@@ -157,7 +163,8 @@ def _merge_duplicates(findings: list[dict]) -> list[dict]:
 def run(inputs, project_dir: Path, output_dir: Path, *, exposure: str = "unknown",
         adapter_name: str | None = None, fail_on: str = "confirmed_exploitable",
         registry: Registry | None = None, offline: bool = True,
-        rules_dir: Path = DEFAULT_RULES) -> dict:
+        rules_dir: Path = DEFAULT_RULES, max_report_bytes: int = MAX_REPORT_BYTES,
+        max_records: int = MAX_RECORDS) -> dict:
     if fail_on not in GATE_VERDICTS:
         raise ModelError(f"unknown gate: {fail_on}")
     if exposure not in EXPOSURES:
@@ -174,6 +181,16 @@ def run(inputs, project_dir: Path, output_dir: Path, *, exposure: str = "unknown
     inputs_summary = []
     for path in input_paths:
         try:
+            size = path.stat().st_size
+        except OSError as exc:
+            diagnostics.append(f"skipped {path.name}: not readable ({type(exc).__name__})")
+            inputs_summary.append({"input": path.name, "route": "skipped"})
+            continue
+        if size > max_report_bytes:
+            diagnostics.append(f"skipped {path.name}: {size} bytes exceeds the {max_report_bytes}-byte budget")
+            inputs_summary.append({"input": path.name, "route": "skipped"})
+            continue
+        try:
             _, document = _read(path)
         except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
             diagnostics.append(f"skipped {path.name}: not readable JSON ({type(exc).__name__})")
@@ -186,6 +203,8 @@ def run(inputs, project_dir: Path, output_dir: Path, *, exposure: str = "unknown
         try:
             if adapter is not None:
                 parsed, parse_notes = adapter.parse(document, {"target": path.name})
+                if len(parsed) > max_records:
+                    raise ModelError(f"{len(parsed)} records exceed the {max_records}-record budget")
                 findings.extend(parsed)
                 adapters_used.append(adapter.name)
                 diagnostics.extend(parse_notes)
@@ -195,6 +214,8 @@ def run(inputs, project_dir: Path, output_dir: Path, *, exposure: str = "unknown
             detected = sca_findings.detect(json.dumps(document))
             if detected is not None:
                 _, items = detected
+                if len(items) > max_records:
+                    raise ModelError(f"{len(items)} records exceed the {max_records}-record budget")
                 sca_inputs.append((path.name, items))
                 inputs_summary.append({"input": path.name, "route": "sca", "records": len(items)})
                 continue
@@ -239,11 +260,26 @@ def run(inputs, project_dir: Path, output_dir: Path, *, exposure: str = "unknown
     return summary
 
 
+def _bool(value: str) -> bool:
+    # Action inputs arrive as strings, and a Docker action's arguments are fixed, so the flag is a value.
+    if value.lower() in {"true", "1", "yes"}:
+        return True
+    if value.lower() in {"false", "0", "no", ""}:
+        return False
+    raise argparse.ArgumentTypeError(f"expected true or false, got {value!r}")
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="engine.universal_run",
                                      description="Assess scanner reports with the universal engine.")
-    parser.add_argument("--input", type=Path, action="append", required=True,
+    parser.add_argument("--input", type=Path, action="append", default=[],
                         help="Scanner report. Repeat for several reports in one run.")
+    parser.add_argument("--inputs", default="",
+                        help="Comma- or newline-separated list of scanner reports (for the action).")
+    parser.add_argument("--max-report-bytes", type=int, default=MAX_REPORT_BYTES)
+    parser.add_argument("--max-records", type=int, default=MAX_RECORDS)
+    parser.add_argument("--timeout-seconds", type=int, default=DEFAULT_TIMEOUT_SECONDS,
+                        help="Wall-clock limit for the whole run; 0 disables it.")
     parser.add_argument("--project-dir", type=Path, required=True)
     parser.add_argument("--output-dir", type=Path, default=Path("universal-report"))
     parser.add_argument("--exposure", choices=EXPOSURES, default="unknown")
@@ -253,16 +289,34 @@ def main(argv: list[str] | None = None) -> int:
                         help="Adapter name, for input that detection cannot tell apart (e.g. empty output)")
     parser.add_argument("--rules-dir", type=Path, default=DEFAULT_RULES,
                         help="Curated SCA rules directory")
-    parser.add_argument("--offline", action="store_true",
-                        help="Do not use advisory and intelligence services for the SCA path")
+    parser.add_argument("--offline", type=_bool, default=False,
+                        help="true to skip advisory and intelligence lookups for the SCA path")
     args = parser.parse_args(argv)
+    listed = [Path(item.strip()) for item in args.inputs.replace(",", "\n").splitlines() if item.strip()]
+    inputs = list(args.input) + listed
+    if not inputs:
+        parser.error("give at least one --input or --inputs")
+
+    def on_timeout(signum, frame):
+        raise TimeoutError(f"the run exceeded {args.timeout_seconds} seconds")
+
+    if args.timeout_seconds > 0 and hasattr(signal, "SIGALRM"):
+        signal.signal(signal.SIGALRM, on_timeout)
+        signal.alarm(args.timeout_seconds)
     try:
-        summary = run(args.input, args.project_dir, args.output_dir, exposure=args.exposure,
+        summary = run(inputs, args.project_dir, args.output_dir, exposure=args.exposure,
                       adapter_name=args.adapter, fail_on=args.fail_on, offline=args.offline,
-                      rules_dir=args.rules_dir)
+                      rules_dir=args.rules_dir, max_report_bytes=args.max_report_bytes,
+                      max_records=args.max_records)
     except ModelError as exc:
         print(f"rejected: {exc}", file=sys.stderr)
         return 2
+    except TimeoutError as exc:
+        print(f"timed out: {exc}", file=sys.stderr)
+        return EXIT_TIMEOUT
+    finally:
+        if hasattr(signal, "SIGALRM"):
+            signal.alarm(0)
 
     markdown = (args.output_dir / "universal-report.md").read_text(encoding="utf-8")
     report.append_job_summary(markdown)
