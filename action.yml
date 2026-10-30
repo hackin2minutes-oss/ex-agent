@@ -26,7 +26,7 @@ inputs:
     description: Skip OSV, EPSS, KEV and fix-commit lookups
     default: "false"
   build-command:
-    description: Build command for the CodeQL database (default: CodeQL autobuild)
+    description: "Build command for the CodeQL database (default: CodeQL autobuild)"
     required: false
     default: ""
   fix-diffs-dir:
