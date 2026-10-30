@@ -25,7 +25,7 @@ import signal
 import sys
 from pathlib import Path
 
-from engine import code_scanning, deployment_context, evidence_graph, provenance, weakness
+from engine import code_scanning, deployment_context, evidence_graph, intel_snapshot, provenance, weakness
 from engine import findings as sca_findings
 from engine import pipeline, report, sca_universal, universal, universal_report
 from engine import guidance
@@ -46,6 +46,7 @@ from engine.threat_model import ThreatModelAdapter, ThreatModelEngine
 from engine.secrets_engine import SecretsEngine
 from engine.semgrep_adapter import SemgrepAdapter
 from engine.trivy_config_adapter import TrivyConfigAdapter
+from engine import updates
 from engine.universal import EXPOSURES, ModelError, Registry
 
 REPORT_SUFFIXES = {".sarif", ".json"}
@@ -228,7 +229,8 @@ def run(inputs, project_dir: Path, output_dir: Path, *, exposure: str = "unknown
         adapter_name: str | None = None, fail_on: str = "confirmed_exploitable",
         registry: Registry | None = None, offline: bool = True,
         rules_dir: Path = DEFAULT_RULES, max_report_bytes: int = MAX_REPORT_BYTES,
-        max_records: int = MAX_RECORDS, context_document: dict | None = None) -> dict:
+        max_records: int = MAX_RECORDS, context_document: dict | None = None,
+        intel: intel_snapshot.Snapshot | None = None) -> dict:
     if fail_on not in GATE_VERDICTS:
         raise ModelError(f"unknown gate: {fail_on}")
     if exposure not in EXPOSURES:
@@ -330,6 +332,8 @@ def run(inputs, project_dir: Path, output_dir: Path, *, exposure: str = "unknown
                                                            "deployment": deployment})
     assessed = [f for f in findings if "assessment" in f] + assessed
     assessed = [guidance.enrich(f) for f in _merge_duplicates(assessed)]
+    if intel is not None:
+        assessed = [intel_snapshot.enrich(f, intel) for f in assessed]
     limitations = sorted({item for finding in assessed for item in finding["assessment"]["limitations"]})
     summary = {
         "inputs": inputs_summary,
@@ -364,6 +368,17 @@ def run(inputs, project_dir: Path, output_dir: Path, *, exposure: str = "unknown
          "attack_paths": summary["evidence_graph"]["attack_paths"],
          "not_correlated": summary["evidence_graph"]["not_correlated"]}, indent=2) + "\n", encoding="utf-8")
     return summary
+
+
+def _load_intel(directory: Path | None, key_path: Path | None):
+    """The verified intel snapshot, or None when no directory was given. A snapshot that fails verification is refused
+    by the caller, not silently skipped."""
+    if directory is None:
+        return None
+    if key_path is None:
+        raise updates.UpdateError("--intel-dir needs --intel-key, the pinned publisher key")
+    key = updates.load_publisher_key(key_path)
+    return intel_snapshot.load(directory / "installed", directory / "state", key)
 
 
 def _read_context(path: Path | None) -> dict | None:
@@ -415,6 +430,11 @@ def main(argv: list[str] | None = None) -> int:
                         help="true to analyse a project whose working tree has uncommitted changes")
     parser.add_argument("--allow-commit-mismatch", type=_bool, default=False,
                         help="true to analyse reports generated from a commit other than the project's HEAD")
+    parser.add_argument("--intel-dir", type=_optional_path, default=None,
+                        help="a directory with installed/ and state/ from the signed-update installer: KEV and EPSS "
+                             "signals are added to findings with a CVE")
+    parser.add_argument("--intel-key", type=Path, default=None,
+                        help="the pinned publisher public key (Ed25519 PEM) that signs the intel snapshot")
     parser.add_argument("--context", type=_optional_path, default=None,
                         help="a sawone-context-1 JSON document: deployment, runtime and exposure evidence")
     parser.add_argument("--code-scanning-repo", default="",
@@ -467,6 +487,11 @@ def main(argv: list[str] | None = None) -> int:
         signal.signal(signal.SIGALRM, on_timeout)
         signal.alarm(args.timeout_seconds)
     try:
+        intel = _load_intel(args.intel_dir, args.intel_key)
+    except (OSError, updates.UpdateError) as exc:
+        print(f"rejected: the intel snapshot could not be verified ({exc})", file=sys.stderr)
+        return 2
+    try:
         context_document = _read_context(args.context)
     except (OSError, ValueError) as exc:
         print(f"rejected: the context file is not readable JSON ({type(exc).__name__})", file=sys.stderr)
@@ -476,7 +501,7 @@ def main(argv: list[str] | None = None) -> int:
                       adapter_name=args.adapter, fail_on=args.fail_on, offline=args.offline,
                       rules_dir=args.rules_dir, max_report_bytes=args.max_report_bytes,
                       max_records=args.max_records, registry=plugin_registry,
-                      context_document=context_document)
+                      context_document=context_document, intel=intel)
     except ModelError as exc:
         print(f"rejected: {exc}", file=sys.stderr)
         return 2

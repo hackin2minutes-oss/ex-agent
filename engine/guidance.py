@@ -2,6 +2,8 @@
 to do. It is derived from the assessment's own conditions and evidence, so it cannot say more than the verdict does.
 """
 
+from engine import weakness
+
 NEXT_STEP = {
     "vulnerability_exists": "Confirm the weakness exists in the assessed version or configuration (the affected range, the "
                             "resolved version, or the configuration value).",
@@ -30,10 +32,25 @@ REMEDIATION = {
     "IAST": "Fix the sink on the observed path, using the sanitiser or parameterisation the sink requires.",
     "RASP": "Keep the protection enabled for this endpoint, and fix the underlying weakness the attack reached.",
 }
+INJECTION_CLASSES = {"SQL_INJECTION", "COMMAND_INJECTION", "XSS", "LDAP_INJECTION", "XML_INJECTION", "CODE_INJECTION",
+                     "PATH_TRAVERSAL", "SSRF", "XXE", "DESERIALIZATION", "OPEN_REDIRECT"}
 LIMITS_BY_ENGINE = {
     "sast-call-site": "Static analysis of one application. Dynamic dispatch, callers outside the project, and "
                       "interprocedural flows beyond the traced path are not followed.",
 }
+
+
+def _category_fix(finding: dict) -> str | None:
+    """The fix for this finding. A SAST alert gets the injection fix only when its weakness class is an injection-style
+    class the engine recognises. Otherwise the scanner's own rule message is the guidance, because the injection fix
+    would be wrong for a YAML or dependency-style rule."""
+    category = finding["category"]
+    if category == "SAST":
+        if weakness.route(finding)["weakness_class"] in INJECTION_CLASSES:
+            return REMEDIATION["SAST"]
+        message = finding["vulnerability"].get("summary") or finding["vulnerability"].get("title") or ""
+        return f"Follow the scanner's guidance for this rule: {message}" if message else None
+    return REMEDIATION.get(category, "Fix the weakness at its source and re-run the assessment.")
 
 
 def enrich(finding: dict) -> dict:
@@ -54,11 +71,17 @@ def enrich(finding: dict) -> dict:
     if limit and limit not in assessment["limitations"]:
         assessment["limitations"] = list(assessment["limitations"]) + [limit]
     category = finding["category"]
+    fix = _category_fix(finding)
     if verdict in ("CONFIRMED_EXPLOITABLE", "POTENTIALLY_EXPLOITABLE"):
-        remediation = REMEDIATION.get(category, "Fix the weakness at its source and re-run the assessment.")
+        remediation = fix
     elif verdict in ("NOT_EXPLOITABLE", "NOT_REACHABLE", "NOT_AFFECTED", "MITIGATED"):
         remediation = "No change is required for this finding in the analysed context. Re-assess if the code or " \
                       "its callers change."
+    elif fix:
+        # The engine could not decide this alert. The fix is still the right first move, but it is not a verdict, so
+        # it is labelled as generic.
+        remediation = (f"Generic fix, not a verdict: {fix} The engine did not establish exploitability for this "
+                       "alert. Provide the missing evidence under missing_information to decide.")
     else:
         remediation = "Provide the missing evidence listed under missing_information, then re-assess."
     # The question that most decides the verdict comes first. For a source finding, that is whether attacker data
@@ -66,6 +89,11 @@ def enrich(finding: dict) -> dict:
     priority = ["attacker_influence", "reachable", "preconditions", "runtime_observed", "blocked",
                 "mitigation_effective", "vulnerability_exists"]
     next_step = next((NEXT_STEP[n] for n in priority if n in unknown), None)
+    if category != "SAST" and verdict in ("UNKNOWN", "ANALYSIS_INCOMPLETE"):
+        # The source-flow questions only apply to a code path. For a configuration, secret or package alert the
+        # question is whether the flagged thing is in use.
+        next_step = ("Confirm the flagged file, setting or package is used by the deployed application, then apply "
+                     "the generic fix.")
     if next_step is None:
         next_step = "None: the decided conditions support the verdict. Re-assess when the source changes."
     assessment.update({

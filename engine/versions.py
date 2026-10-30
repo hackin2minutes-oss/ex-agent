@@ -31,6 +31,7 @@ _SEMVER = re.compile(
 MAVEN = "Maven"
 NPM = "npm"
 PYPI = "PyPI"
+NUGET = "NuGet"
 GO = "Go"
 SUPPORTED_ECOSYSTEMS = {MAVEN, NPM, PYPI, GO}
 _PYPI_RELEASE = re.compile(r"^\d+(\.\d+)*$")
@@ -99,6 +100,31 @@ def _pypi_compare(a: str, b: str) -> int | None:
     return (left > right) - (left < right)
 
 
+_NUGET = re.compile(r"^(\d+(?:\.\d+){0,3})(?:-([0-9A-Za-z.-]+))?(?:\+.*)?$")
+
+
+def _nuget_key(version: str):
+    """NuGet versions have one to four numeric parts, padded here to four, and an optional pre-release label."""
+    match = _NUGET.match(version)
+    if not match:
+        return None
+    parts = [int(part) for part in match.group(1).split(".")]
+    parts += [0] * (4 - len(parts))
+    if match.group(2) is None:
+        return tuple(parts) + (1, ())
+    ids = []
+    for ident in match.group(2).split("."):
+        ids.append((0, int(ident), "") if ident.isdigit() else (1, 0, ident))
+    return tuple(parts) + (0, tuple(ids))
+
+
+def _nuget_compare(a: str, b: str) -> int | None:
+    ka, kb = _nuget_key(a), _nuget_key(b)
+    if ka is None or kb is None:
+        return None
+    return (ka > kb) - (ka < kb)
+
+
 def compare(ecosystem: str, a: str, b: str) -> int | None:
     """Return -1, 0 or 1, or None when the ecosystem or a version is unsupported."""
     if not a or not b:
@@ -115,6 +141,8 @@ def compare(ecosystem: str, a: str, b: str) -> int | None:
         return _semver_compare(a, b)
     if ecosystem == PYPI:
         return _pypi_compare(a, b)
+    if ecosystem == NUGET:
+        return _nuget_compare(a, b)
     return None
 
 

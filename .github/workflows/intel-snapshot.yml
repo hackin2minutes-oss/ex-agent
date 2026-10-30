@@ -1,0 +1,45 @@
+name: Weekly intel snapshot
+
+# Builds the signed exploit-signal and advisory snapshot (CISA KEV, FIRST EPSS, OSV NuGet). The snapshot is uploaded as a
+# workflow artifact. Nothing is published from here: a release of the snapshot needs its own review.
+on:
+  schedule:
+    - cron: "17 3 * * 1"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build and sign the snapshot
+    # The signing key is a secret of this environment, so a reviewer approves each run.
+    environment: production
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.13"
+      - name: Install engine requirements
+        run: python3 -m pip install --require-hashes -r requirements.lock
+      - name: Build and sign the snapshot
+        env:
+          INTEL_SIGNING_KEY: ${{ secrets.INTEL_SIGNING_KEY }}
+          RUN_NUMBER: ${{ github.run_number }}
+        run: |
+          set -euo pipefail
+          key="$RUNNER_TEMP/intel-signing.pem"
+          printf '%s\n' "$INTEL_SIGNING_KEY" > "$key"
+          chmod 600 "$key"
+          version="$(date -u +%Y.%m.%d).$RUN_NUMBER"
+          PYTHONPATH=. python3 scripts/build_intel_snapshot.py \
+            --out "$RUNNER_TEMP/intel-snapshot" --version "$version" --signing-key "$key"
+          rm -f "$key"
+      - name: Upload the snapshot
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: intel-snapshot
+          path: ${{ runner.temp }}/intel-snapshot
+          if-no-files-found: error
+          retention-days: 30
