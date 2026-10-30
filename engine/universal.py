@@ -75,14 +75,15 @@ def normalise_severity(reported) -> str:
 
 
 def finding_id(category: str, rule: str, target: str, *parts) -> str:
-    """Stable identifier for a finding, derived from what identifies it."""
+    """Stable identifier for a finding, derived from what identifies it. Runtime findings add the
+    observation and request as `identity`, so two requests that reach one sink are two findings."""
     digest = hashlib.sha256("|".join([category, rule, target, *map(str, parts)]).encode())
     return digest.hexdigest()[:16]
 
 
 def make_finding(*, category: str, rule_id: str, title: str, asset: dict, location: dict | None,
                  severity_reported, provenance: dict, original: dict, summary: str = "",
-                 ids: list[str] | None = None, exposure: str = "unknown") -> dict:
+                 ids: list[str] | None = None, exposure: str = "unknown", identity: tuple = ()) -> dict:
     """Build one universal finding. Raises ModelError on values the model does not allow."""
     if category not in CATEGORIES:
         raise ModelError(f"unknown category: {category}")
@@ -98,7 +99,7 @@ def make_finding(*, category: str, rule_id: str, title: str, asset: dict, locati
     start = location.get("start_line") if location else None
     col = location.get("start_col") if location else None
     return {
-        "id": finding_id(category, rule_id, str(target), start, col),
+        "id": finding_id(category, rule_id, str(target), start, col, *identity),
         "category": category,
         "vulnerability": {
             "rule_id": rule_id,
