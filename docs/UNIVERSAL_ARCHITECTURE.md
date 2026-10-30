@@ -1,7 +1,9 @@
 # Universal security finding exploitability engine: design
 
-Status: design only. No code in this document is implemented. Each implementation step
-needs a decision listed in section 7 first.
+Status: step 2 implemented in `engine/universal.py`, `engine/universal_run.py`,
+`engine/universal_report.py`, `engine/semgrep_adapter.py` and `engine/sast.py`. The SCA path
+is not ported and its outputs are unchanged. Section 7 records the decisions taken. Sections 2
+to 6 describe the target. Where they differ from the code, section 8 says so.
 
 SAWONE is not limited to SCA or CVEs. It assesses findings from any supported security
 testing domain. It does not depend on which tool produced a finding, and each domain has its
@@ -39,8 +41,7 @@ Rules from the mandate, which the design must enforce:
 - A blocked RASP event is not proof that no weakness exists.
 - A successful DAST test is not proof that every path is exploitable.
 
-Decision needed: keep the current verdict names for existing outputs and add the mandate's
-names beside them, or migrate outputs and the policy file's keys.
+Decided (section 7): the mandate names are used for new output. Legacy names stay in SCA output.
 
 ## 3. Universal finding model
 
@@ -131,17 +132,42 @@ environment. It does not mean SAWONE assesses the domain well.
 Phases 2 to 5 are each a multi-session project. None of them is supported until its engine
 passes positive and negative tests on real tool output.
 
-## 7. Decisions needed before implementation
+## 7. Decisions
 
-1. **Verdict vocabulary:** keep the current names and add the mandate's, or migrate the
-   outputs and the policy file. Migration changes public outputs.
-2. **Scope of step 2:** port SCA onto the new model now, or add the model beside the current
-   pipeline first.
-3. **Order:** confirm SAST (Semgrep) before IaC and CI/CD, or change it.
-4. **Authorisation:** confirm that secret validity checks stay out of scope unless you
-   explicitly authorise them for a named system.
+Taken by the project owner. Each one is implemented as stated.
 
-## 8. Not claimed
+1. **Verdict vocabulary:** the mandate's seven names are used for all new output. The legacy
+   SCA names stay in SCA output. `from_legacy` maps them for reporting only. A legacy class
+   with no clear mapping becomes UNKNOWN.
+2. **Scope of step 2:** the model and the adapter and engine interfaces are added beside the
+   existing pipeline. The SCA pipeline is not ported in this step.
+3. **Order:** SAST (Semgrep), then IaC (Checkov), then CI/CD (Zizmor), then container, then
+   secrets (Gitleaks), then DAST, IAST and RASP.
+4. **Authorisation:** secret validity checks stay out of scope. No live credential check runs
+   unless a named system is explicitly authorised.
+
+## 8. What step 2 implements, and what it does not
+
+- Model: `make_finding` validates category, asset type, exposure and provenance. Severity is
+  normalised, and the reported label is kept.
+- Verdicts: `make_assessment` refuses any verdict whose rule is not met. The core re-applies
+  the same rules to every engine result (`revalidate`). A missing engine gives UNKNOWN with a
+  reason. An engine exception gives ANALYSIS_INCOMPLETE.
+- SAST: the Semgrep adapter keeps each result verbatim. The SAST engine resolves the flagged
+  call with the Python AST and checks whether its arguments are literals. A literal-only call
+  gives NOT_EXPLOITABLE for that call site. Anything else gives POTENTIALLY_EXPLOITABLE with
+  LOW confidence. Non-Python files get POTENTIALLY_EXPLOITABLE with LOW confidence and no
+  source-level analysis. CONFIRMED_EXPLOITABLE and MITIGATED are never produced by SAST.
+- Outputs: `universal-findings.json`, `universal.sarif` (validated against the OASIS 2.1.0
+  schema) and `universal-report.md`. `python -m engine.universal_run` also writes the step
+  summary.
+- Real input: `tests/fixtures/sast/semgrep-1.183.0.real.json` is `semgrep --json` output from
+  Semgrep 1.183.0 on `tests/fixtures/sast/project`, with the local rules in
+  `tests/fixtures/sast/rules.yml`. Those rules are fixture rules, not production rules.
+- Not done: Checkov, Zizmor, Gitleaks, Hadolint, Trivy and Grype adapters; the SCA port; a
+  gate in the universal path; a GitHub Action input for it.
+
+## 9. Not claimed
 
 - That any domain beyond SCA is supported today.
 - That any engine is accurate. No accuracy figures exist.
