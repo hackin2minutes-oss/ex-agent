@@ -29,6 +29,12 @@ inputs:
   offline:
     description: Skip OSV, EPSS, KEV and fix-commit lookups
     default: "false"
+  exposure:
+    description: >
+      Declared exposure of the analysed application: internet, internal or unknown.
+      confirmed_exploitable is reported only when this is internet. The engine cannot
+      establish exposure from source code.
+    default: "unknown"
   update-dir:
     description: Signed update directory (manifest.json, manifest.json.sig and files). Empty to skip.
     required: false
@@ -71,3 +77,5 @@ runs:
     - ${{ inputs.offline }}
     - --policy
     - ${{ inputs.policy-file }}
+    - --exposure
+    - ${{ inputs.exposure }}

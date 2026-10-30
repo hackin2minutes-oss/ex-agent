@@ -26,7 +26,8 @@ class PythonCallGraphTest(unittest.TestCase):
                              "def helper(v):\n    return sink(v)\n"
                              "def sink(v):\n    return v\n")
         graph = callgraph.build(self.tmp)
-        paths = callgraph.paths_to(graph, {"app:sink"})
+        paths, complete = callgraph.paths_to(graph, {"app:sink"})
+        self.assertTrue(complete)
         self.assertEqual(paths, [["app:handler", "app:helper", "app:sink"]])
         self.assertTrue(all(e["resolution"] == "ast-same-module" for e in graph.edges))
 
@@ -35,13 +36,13 @@ class PythonCallGraphTest(unittest.TestCase):
                              "def b():\n    a()\n    target()\n"
                              "def target():\n    pass\n")
         graph = callgraph.build(self.tmp)
-        self.assertEqual(callgraph.paths_to(graph, {"app:target"}), [["app:a", "app:b", "app:target"]])
+        self.assertEqual(callgraph.paths_to(graph, {"app:target"})[0], [["app:a", "app:b", "app:target"]])
 
     def test_depth_is_bounded(self):
         chain = "".join(f"def f{i}():\n    f{i + 1}()\n" for i in range(12)) + "def f12():\n    pass\n"
         self.write("app.py", "@app.route('/x')\ndef start():\n    f0()\n" + chain)
         graph = callgraph.build(self.tmp)
-        self.assertEqual(callgraph.paths_to(graph, {"app:f12"}), [])
+        self.assertEqual(callgraph.paths_to(graph, {"app:f12"})[0], [])
 
     def test_imported_callee_is_resolved_and_attribute_calls_are_unresolved(self):
         self.write("lib.py", "def sink(v):\n    return v\n")

@@ -6,6 +6,7 @@ from pathlib import Path
 from engine import pipeline, report, updates
 
 FAIL_ON_CHOICES = ["confirmed_reachable", "confirmed_exploitable"]
+EXPOSURE_CHOICES = ["internet", "internal", "unknown"]
 
 
 def _optional_path(value: str) -> Path | None:
@@ -29,6 +30,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--rules-dir", type=Path, default=Path("rules"))
     parser.add_argument("--output-dir", type=Path, default=Path("exploitability-report"))
     parser.add_argument("--fail-on", choices=FAIL_ON_CHOICES, default="confirmed_reachable")
+    parser.add_argument("--exposure", choices=EXPOSURE_CHOICES, default="unknown",
+                        help="Declared exposure of the application. confirmed_exploitable needs 'internet'.")
     parser.add_argument("--offline", type=_bool, default=False,
                         help="true to skip all network intelligence lookups")
     parser.add_argument("--cache-dir", type=_optional_path, default=None)
@@ -67,7 +70,7 @@ def main(argv: list[str] | None = None) -> int:
         args.project_dir, args.deps, rules_dir, args.output_dir, args.fail_on,
         offline=args.offline, cache_dir=args.cache_dir, fix_diffs_dir=args.fix_diffs_dir,
         codeql_path=args.codeql or None, build_command=args.build_command or None,
-        policy_path=args.policy,
+        policy_path=args.policy, exposure=args.exposure,
     )
 
     markdown = (args.output_dir / "report.md").read_text(encoding="utf-8")

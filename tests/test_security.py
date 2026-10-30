@@ -9,9 +9,10 @@ import unittest
 from pathlib import Path
 
 from engine import callsites, codeql, context, ingest, pipeline, policy, sbom
+from tests.support import combined_rules_dir
 
 ROOT = Path(__file__).resolve().parent.parent
-RULES = ROOT / "rules"
+RULES = combined_rules_dir()
 FIXTURE = ROOT / "tests" / "fixtures" / "app"
 
 

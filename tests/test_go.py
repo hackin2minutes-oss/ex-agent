@@ -1,11 +1,10 @@
 import json
-import re
 import shutil
 import tempfile
 import unittest
 from pathlib import Path
 
-from engine import pipeline, versions
+from engine import pipeline, preconditions, versions
 
 ROOT = Path(__file__).resolve().parent.parent
 RULES = ROOT / "rules"
@@ -51,10 +50,15 @@ class GoPipelineTest(unittest.TestCase):
         entry = next(e for e in findings[0]["evidence"] if e["type"] == "entry_point")
         self.assertEqual(entry["routes"][0]["route"], "/download")
 
-    def test_rule_regex_matches_the_vulnerable_call(self):
+    def test_rule_precondition_needs_a_request_filename(self):
         rule = json.loads((RULES / "CVE-2023-29401.json").read_text())
-        pattern = rule["preconditions"][0]["regex"]
-        self.assertRegex((VULNERABLE / "main.go").read_text(), re.compile(pattern))
+        status, _ = preconditions.evaluate(rule["preconditions"], VULNERABLE)
+        self.assertEqual(status, "satisfied")
+        # The safe app calls FileAttachment with a constant filename. The call exists,
+        # so a text match would have accepted it. The argument check must not.
+        status, details = preconditions.evaluate(rule["preconditions"], SAFE)
+        self.assertEqual(status, "unverified")
+        self.assertIn("constant", details[0]["reason"])
 
 
 if __name__ == "__main__":

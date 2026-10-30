@@ -5,10 +5,11 @@ import unittest
 from pathlib import Path
 
 from engine import intel as intel_module, pipeline
+from tests.support import combined_rules_dir
 
 ROOT = Path(__file__).resolve().parent.parent
 FIXTURE = ROOT / "tests" / "fixtures" / "app"
-RULES = ROOT / "rules"
+RULES = combined_rules_dir()
 NO_CODEQL = "/nonexistent/codeql"  # forces the text-scan path, so results do not depend on the host
 
 
@@ -65,13 +66,16 @@ class FixturePipelineTest(PipelineTestCase):
         self.assertEqual(finding["reachability"], "unknown")
         self.assertEqual(finding["verdict"], "unknown")
 
-    def test_fixed_version_produces_no_finding(self):
+    def test_fixed_version_is_reported_as_not_affected(self):
         deps = self.tmp / "deps.json"
         data = json.loads((FIXTURE / "resolved-deps.json").read_text())
         data["dependencies"][0]["version"] = "2.4.1"
         deps.write_text(json.dumps(data))
-        summary, _ = self.run_pipeline(FIXTURE, deps)
-        self.assertEqual(summary["findings"], 0)
+        summary, out = self.run_pipeline(FIXTURE, deps)
+        finding = json.loads((out / "evidence.json").read_text())["findings"][0]
+        self.assertEqual(finding["classification"], "not_affected")
+        self.assertEqual(finding["stages"]["B_version"], "NOT_CONFIRMED")
+        self.assertEqual(finding["verdict"], "not_affected")
 
     def test_absent_dependency_produces_no_finding(self):
         deps = self.tmp / "deps.json"

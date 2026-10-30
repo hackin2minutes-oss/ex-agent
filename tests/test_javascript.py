@@ -43,7 +43,7 @@ class JavaScriptPipelineTest(unittest.TestCase):
         self.assertEqual(call["locations"], [])
         self.assertEqual(finding["preconditions"], "unverified")
 
-    def test_lodash_fixed_version_is_not_a_finding(self):
+    def test_lodash_fixed_version_is_not_affected(self):
         with tempfile.TemporaryDirectory() as tmp:
             project = Path(tmp) / "app"
             shutil.copytree(VULNERABLE, project)
@@ -51,7 +51,8 @@ class JavaScriptPipelineTest(unittest.TestCase):
             lock["packages"]["node_modules/lodash"]["version"] = "4.17.12"
             (project / "package-lock.json").write_text(json.dumps(lock))
             summary, findings = self.run_app(project)
-            self.assertEqual(findings, [])
+            self.assertEqual(len(findings), 1)
+            self.assertEqual(findings[0]["classification"], "not_affected")
 
 
 if __name__ == "__main__":

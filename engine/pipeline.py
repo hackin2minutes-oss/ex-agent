@@ -97,9 +97,29 @@ def collect_candidates(deps: list[dict], rules: list[dict], intel) -> dict:
                 continue
             affected = versions.is_affected(dep["ecosystem"], dep["version"],
                                             rule["affected"]["introduced"], rule["affected"]["fixed"])
-            if affected is False:
-                continue
             key = (rule["cve"], dep["ecosystem"], dep["name"], dep["version"])
+            if affected is False:
+                if key in candidates:
+                    # Another source says this version is affected. The two disagree, so the
+                    # version is UNKNOWN, never NOT_AFFECTED.
+                    candidates[key]["version_status"] = xp.UNKNOWN
+                    candidates[key]["conflict"] = True
+                    candidates[key]["conflict_detail"] = "curated range says not affected; another source says affected"
+                    continue
+                # Outside the curated affected range, and no source says otherwise.
+                candidates[key] = {
+                    "key": key,
+                    "cve": rule["cve"],
+                    "vuln_id": rule["cve"],
+                    "aliases": [rule["cve"]],
+                    "summary": rule.get("summary", ""),
+                    "fix_commits": [],
+                    "dependency": dep,
+                    "curated": rule,
+                    "sources": ["curated"],
+                    "version_status": xp.NOT_CONFIRMED,
+                }
+                continue
             cand = candidates.setdefault(key, {
                 "key": key,
                 "cve": rule["cve"],
@@ -191,19 +211,39 @@ def derive_stages(*, cand: dict, symbol_names: list[str], mode: str, codeql_requ
     }
 
 
-def _python_call_paths(hits: list[dict], project_dir: Path, ctx: dict) -> list[dict]:
-    """Entry-point paths to the functions that contain the vulnerable Python call sites."""
+def _python_call_paths(hits: list[dict], project_dir: Path, ctx: dict) -> tuple[str, list[dict], dict]:
+    """Return (result, paths, graph_summary). result is one of: none_needed, confirmed, not_found, incomplete.
+
+    "not_found" is returned only when the graph is complete and the search finished.
+    Otherwise the result is "incomplete": the absence of a path is unknown.
+    """
     python_hits = [h for h in hits if str(h.get("file", "")).endswith(".py")]
     if not python_hits:
-        return []
+        return "none_needed", [], {}
     if "python_graph" not in ctx:
         ctx["python_graph"] = callgraph.build(project_dir)
     graph = ctx["python_graph"]
+    summary = graph.summary()
     targets = {callgraph.enclosing_function(graph, h["file"], h["line"]) for h in python_hits}
     targets.discard(None)
-    return [{"entry": path[0], "route": graph.nodes[path[0]]["route"], "path": path,
-             "edges": [e for e in graph.edges if e["from"] in path and e["to"] in path]}
-            for path in callgraph.paths_to(graph, targets)]
+    if not targets:
+        return "incomplete", [], {**summary, "reason": "vulnerable call not inside a graph node"}
+    found, search_complete = callgraph.paths_to(graph, targets)
+    paths = [{"entry": path[0], "route": graph.nodes[path[0]]["route"], "path": path}
+             for path in found]
+    if paths:
+        return "confirmed", paths, summary
+    if not graph.complete or not search_complete:
+        return "incomplete", [], summary
+    return "not_found", [], summary
+
+
+def _graph_limitations(call_graph: dict) -> list[str]:
+    """A truncated call graph must be visible in the report, not only in evidence.json."""
+    if not call_graph or call_graph.get("complete", True):
+        return []
+    reasons = ", ".join(call_graph.get("incomplete_reasons") or ["unknown"])
+    return [f"{report.CALL_GRAPH_INCOMPLETE} ({reasons}); the absence of a call path is unknown"]
 
 
 def analyse_candidate(cand: dict, project_dir: Path, ctx: dict) -> dict:
@@ -246,7 +286,7 @@ def analyse_candidate(cand: dict, project_dir: Path, ctx: dict) -> dict:
 
     pre_status, pre_details = preconditions.evaluate(
         cand["curated"]["preconditions"] if cand["curated"] else None, project_dir)
-    call_paths = _python_call_paths(hits, project_dir, ctx)
+    call_path_result, call_paths, call_graph = _python_call_paths(hits, project_dir, ctx)
     entry_points = (context.find_entry_points(project_dir) + context.find_python_entry_points(project_dir)
                     + context.find_javascript_entry_points(project_dir)
                     + context.find_go_entry_points(project_dir))
@@ -266,7 +306,7 @@ def analyse_candidate(cand: dict, project_dir: Path, ctx: dict) -> dict:
         hits=hits, taint=taint, analysis_complete=analysis_complete, pre_status=pre_status,
         mitigated=mitigated, kev_status=kev_status, config_status=config_status)
     classification, classification_reason = xp.classify(
-        stage_values, access_controls_present=bool(auth_hints))
+        stage_values, access_controls_present=bool(auth_hints), exposure=ctx["exposure"])
     final_verdict = xp.legacy_verdict(classification)
 
     vuln = {
@@ -300,7 +340,7 @@ def analyse_candidate(cand: dict, project_dir: Path, ctx: dict) -> dict:
         {"type": "access_control", "result": "hints_present" if auth_hints else "not_found",
          "locations": auth_hints, "note": "Informational. Does not change the verdict."},
         {"type": "taint_path", "result": taint, "locations": _taint_locations(taint_flows)},
-        {"type": "call_paths", "result": "confirmed" if call_paths else "not_found", "paths": call_paths,
+        {"type": "call_paths", "result": call_path_result, "paths": call_paths, "graph": call_graph,
          "method": "python-ast name resolution (bounded, cycle-free)"},
         {"type": "preconditions", "result": pre_status, "checks": pre_details},
         {"type": "configuration", "result": config_status, "checks": config_details},
@@ -323,9 +363,12 @@ def analyse_candidate(cand: dict, project_dir: Path, ctx: dict) -> dict:
             "CodeQL CLI not available or failed; reachability is partial",
         ]
     limitations += notes
+    limitations += _graph_limitations(call_graph)
     if cand.get("conflict"):
         limitations.append("GHSA reports this version as affected but its range does not match; "
                            "version applicability is treated as UNKNOWN")
+    if cand.get("conflict_detail"):
+        limitations.append(f"{cand['conflict_detail']}; version applicability is treated as UNKNOWN")
 
     return {
         "id": f"{cand['cve'] or cand['vuln_id']}@{dep['name']}:{dep['version']}",
@@ -349,7 +392,8 @@ def analyse_candidate(cand: dict, project_dir: Path, ctx: dict) -> dict:
 def run(project_dir: Path, deps_path: Path | None, rules_dir: Path, output_dir: Path, fail_on: str,
         *, offline: bool = False, cache_dir: Path | None = None, fix_diffs_dir: Path | None = None,
         codeql_path: str | None = None, build_command: str | None = None,
-        intel: intel_module.Intel | None = None, policy_path: Path | None = None) -> dict:
+        intel: intel_module.Intel | None = None, policy_path: Path | None = None,
+        exposure: str = "unknown") -> dict:
     deps = [d for d in ingest.resolve(project_dir, deps_path)
             if d["scope"] not in SHIPPED_SCOPE_EXCLUDED]
     rules = symbols.load_rules(rules_dir)
@@ -382,6 +426,7 @@ def run(project_dir: Path, deps_path: Path | None, rules_dir: Path, output_dir: 
 
     ctx = {
         "intel": intel,
+        "exposure": exposure,
         "fix_diffs_dir": fix_diffs_dir,
         "epss": epss,
         "kev": kev,

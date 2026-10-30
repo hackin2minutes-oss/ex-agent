@@ -18,7 +18,7 @@ class ConfigurationStageTest(unittest.TestCase):
         self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
         rules = tmp / "rules"
         rules.mkdir()
-        rule = json.loads((ROOT / "rules" / "CVE-XXXX-XXXX.json").read_text())
+        rule = json.loads((ROOT / "tests" / "fixtures" / "rules" / "SYNTHETIC-0001.json").read_text())
         rule["configuration"] = configuration
         (rules / "rule.json").write_text(json.dumps(rule))
         project = tmp / "app"

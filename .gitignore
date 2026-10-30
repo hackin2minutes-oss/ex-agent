@@ -2,3 +2,4 @@ __pycache__/
 *.pyc
 exploitability-report/
 .exploitability-cache/
+.ci-rules/

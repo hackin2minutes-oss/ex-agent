@@ -54,8 +54,11 @@ def _maven_pad(other: tuple) -> tuple:
     return (3, 0) if other[0] == 3 else (2, 5, "")
 
 
-def _maven_compare(a: str, b: str) -> int:
+def _maven_compare(a: str, b: str) -> int | None:
     left, right = _maven_items(a), _maven_items(b)
+    if not left or not right:
+        # An empty or non-numeric version is unknown, not zero.
+        return None
     for i in range(max(len(left), len(right))):
         x = left[i] if i < len(left) else _maven_pad(right[i])
         y = right[i] if i < len(right) else _maven_pad(left[i])
@@ -98,6 +101,8 @@ def _pypi_compare(a: str, b: str) -> int | None:
 
 def compare(ecosystem: str, a: str, b: str) -> int | None:
     """Return -1, 0 or 1, or None when the ecosystem or a version is unsupported."""
+    if not a or not b:
+        return None
     if ecosystem == MAVEN:
         return _maven_compare(a, b)
     if ecosystem == NPM:
