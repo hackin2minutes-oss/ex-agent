@@ -58,6 +58,10 @@ def main(argv: list[str]) -> int:
     if len(sarif["runs"][0]["results"]) != len(findings):
         errors.append("SARIF result count does not match findings")
 
+    for finding in findings:
+        for limitation in finding["scope"]["limitations"]:
+            if limitation.startswith("CodeQL failed") or "CodeQL" in limitation and "fallback" in limitation:
+                print(f"::notice title=Finding engine note::{limitation}")
     for note in summary.get("notes", []):
         print(f"::notice title=Engine note::{note}")
     for source, status in summary.get("intel", {}).items():
