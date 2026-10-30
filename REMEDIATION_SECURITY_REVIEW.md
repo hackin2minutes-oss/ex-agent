@@ -124,7 +124,7 @@ user reports it deleted; the revocation has not been confirmed from here.
 
 ## Not verified
 
-- CodeQL taint and call-site behaviour on the changed rules (CI only).
+- CodeQL taint and call-site behaviour on the changed rules: the CodeQL verify steps passed in CI on `7e13c45`, and the CodeQL job passed on merged `main`. Only the artifact upload failed, on the quota, before the quota was cleared.
 - Image build, non-root runtime and report writing in the container (CI only).
 - Fuzzing of the parser and regex paths.
 - Dependency pinning with hashes.

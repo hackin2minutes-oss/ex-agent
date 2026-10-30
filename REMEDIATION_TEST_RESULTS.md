@@ -76,7 +76,8 @@ fixtures were **not** changed to make tests pass, with two exceptions, both list
 | CodeQL CI jobs (JS, TS, Go, Python, taint control) | Ran in CI on `7e13c45`: all 24 verify and run steps passed. Only `Upload report` failed (artifact quota, infrastructure). Not run locally | Result recorded in `REMEDIATION_REPORT.md` |
 | Docker image build and non-root check | Docker daemon not running here | Push the branch; the new step in the `Action` job |
 | Action run on the wrapper with `exposure` input | Requires the image and CI | Same CI run |
-| Live OSV, GHSA, NVD, EPSS, KEV | Egress denied for these hosts | Offline and recorded-response tests only |
+| Live OSV, EPSS, NVD, KEV | Verified in the final-verification section below | See below |
+| Live GHSA | 403 from this session (needs a GitHub token) | Not verified |
 | Workflow execution for SHA-pinned actions | Requires GitHub runners | Same CI run; a bad SHA fails the job |
 
 Nothing in the last table is claimed as verified.
@@ -122,8 +123,46 @@ committed file exactly, apart from its header comments. A fresh virtualenv insta
 `cryptography` 50.0.1). CI runs the same install in the Unit tests job, and a
 lock-currency check that regenerates the lock and diffs it.
 
-CI results for this PR are recorded in the pull request, not here, and are added after the
-run completes.
+CI results for this PR are recorded in the final-verification section below.
 
-Not verified here: the Code Scanning upload result (HTTP 403 from the API), local Docker
-build (no daemon), live intelligence sources (egress blocked).
+## Final verification (after both PRs merged)
+
+Both follow-up PRs merged to `main` by the repository owner: PR #3 at `61524d1` and PR #4 at
+`874915b`. The results below are checked, not assumed.
+
+**CI on merged `main`.** Action (Docker, offline), Unit tests and CodeQL call-site and taint
+all completed with success on `61524d1`, `7f69c00` and `874915b`. On `61524d1` the Action job's
+`Upload SARIF to Code Scanning` and `Upload report` steps also succeeded.
+
+**Docker build, local.** The Docker daemon started in this session. The first build of the
+repository's `Dockerfile` failed. pip, running inside the build container, could not verify
+PyPI's certificate, because this sandbox intercepts TLS with its own CA. The repository's
+`Dockerfile` was not changed for this. Instead, a scratch copy of `main` was built with the
+sandbox CA added, and only that copy has the extra lines. Results from that image:
+- The base image was pulled by digest `sha256:2d44738e…86bb`.
+- The process runs as UID `1001`, and Python is `3.13.18`.
+- A probe file can be written into a mounted directory as UID 1001.
+- `python -m engine` on the sample Spring app exits 0. It writes `summary.json`,
+  `evidence.json`, `findings.sarif`, `call-graph.json` and `report.md`. The summary reports
+  `bounded_analysis_complete: true`. The gate passed with zero findings, which is expected
+  because the production rules do not match that dependency tree.
+- `findings.sarif` validates against the OASIS 2.1.0 schema.
+
+The repository's own image build is verified in CI, not locally.
+
+**Live intelligence, through the engine's own clients.**
+- OSV: returned 4 advisories for `PyPI pyyaml 5.3`.
+- EPSS: returned `0.05656` for `CVE-2017-18342`.
+- NVD: returned the CVE record for `CVE-2017-18342`.
+- KEV: returned the CISA feed, with 1,764 entries. `CVE-2017-18342` is correctly not among them.
+- GHSA: unavailable. `api.github.com` returns HTTP 403 from this session, and the client needs a
+  `GITHUB_TOKEN`. Not verified.
+
+**Publish workflow pins.** The three pinned Docker actions in `publish-image.yml`
+(`setup-buildx-action`, `login-action`, `build-push-action`) each resolve to a commit that
+appears at its version tag, checked with `git ls-remote`. The publish workflow itself has not
+run since it was pinned. Running it publishes an image, so it was not dispatched. Dispatching
+it needs your explicit instruction.
+
+**Still not verified.** Code Scanning results (HTTP 403 from the code-scanning API), the
+wrapper repository, and the publish workflow's run.

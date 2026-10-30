@@ -73,7 +73,7 @@ backs it. Test file: `tests/test_callgraph_verification.py` (23 tests). Full run
 | 9 | Scale tests at 100, 1,000, 2,000 and 4,000 files | `tests/test_callgraph_scale.py`, 13 tests | Pass, 5.4 s wall time for the module |
 | 10 | Runtime and memory | `REMEDIATION_PERFORMANCE_REPORT.md`, second-pass table | Measured |
 | 11 | All existing regression tests | Full suite | 269 tests, all passing |
-| 12 | GitHub Actions CI jobs | See "CI status" | Not yet green on this head |
+| 12 | GitHub Actions CI jobs | See "CI status" | Green on merged `main` (`61524d1`, `7f69c00`, `874915b`) |
 
 **Note on the independent oracle.** The oracle checks path search against the graph's own
 edges. It does not check that the edges match the source code. Construction correctness
