@@ -22,6 +22,8 @@ def scan_call_sites(source_root: Path, symbol: str, language: str = "java") -> l
         return _scan_python_call_sites(source_root, symbol)
     if language == "javascript":
         return _scan_javascript_call_sites(source_root, symbol)
+    if language == "go":
+        return _scan_go_call_sites(source_root, symbol)
     qualified_class, method = symbol.rsplit(".", 1)
     simple_class = qualified_class.rsplit(".", 1)[-1]
     import_line = f"import {qualified_class};"
@@ -81,9 +83,26 @@ def _scan_javascript_call_sites(source_root: Path, symbol: str) -> list[dict]:
     return hits
 
 
+def _scan_go_call_sites(source_root: Path, symbol: str) -> list[dict]:
+    package, _, member = symbol.partition("#")
+    _, method = member.rsplit(".", 1)
+    import_line = f'"{package}"'
+    call = re.compile(rf"\.{re.escape(method)}\s*\(")
+    hits = []
+    for path in sorted(source_root.rglob("*.go")):
+        text = path.read_text(encoding="utf-8", errors="replace")
+        if import_line not in text:
+            continue
+        for lineno, line in enumerate(text.splitlines(), 1):
+            if call.search(line):
+                hits.append({"file": str(path.relative_to(source_root)), "line": lineno, "text": line.strip()})
+    return hits
+
+
 def reflection_indicators(source_root: Path) -> list[dict]:
     hits = []
     files = [*source_root.rglob("*.java"), *source_root.rglob("*.py")]
+    files += source_root.rglob("*.go")
     for pattern in _JS_EXTENSIONS:
         files += source_root.rglob(pattern)
     for path in sorted(files):

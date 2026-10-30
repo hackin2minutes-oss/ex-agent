@@ -31,8 +31,10 @@ _SEMVER = re.compile(
 MAVEN = "Maven"
 NPM = "npm"
 PYPI = "PyPI"
-SUPPORTED_ECOSYSTEMS = {MAVEN, NPM, PYPI}
+GO = "Go"
+SUPPORTED_ECOSYSTEMS = {MAVEN, NPM, PYPI, GO}
 _PYPI_RELEASE = re.compile(r"^\d+(\.\d+)*$")
+_GO_PSEUDO = re.compile(r"-(\d+\.)?\d{14}-[0-9a-f]{12}")
 
 
 def _maven_items(version: str) -> list[tuple]:
@@ -99,6 +101,12 @@ def compare(ecosystem: str, a: str, b: str) -> int | None:
     if ecosystem == MAVEN:
         return _maven_compare(a, b)
     if ecosystem == NPM:
+        return _semver_compare(a, b)
+    if ecosystem == GO:
+        # Go release versions are semantic versions with a leading "v". Pseudo-versions (a
+        # timestamp and commit hash) are unsupported: their order is not checked here.
+        if _GO_PSEUDO.search(a) or _GO_PSEUDO.search(b):
+            return None
         return _semver_compare(a, b)
     if ecosystem == PYPI:
         return _pypi_compare(a, b)

@@ -94,3 +94,24 @@ def find_javascript_entry_points(source_root: Path) -> list[dict]:
                         "route": match.group("route") or "/",
                     })
     return entry_points
+
+
+_GO_ROUTE = re.compile(r'\b(?P<owner>\w+)\.(?P<kind>GET|POST|PUT|DELETE|PATCH|Any)\(\s*"(?P<route>[^"]*)"')
+
+
+def find_go_entry_points(source_root: Path) -> list[dict]:
+    """Gin route registrations (`r.GET("/path", handler)`)."""
+    entry_points = []
+    for path in sorted(source_root.rglob("*.go")):
+        text = path.read_text(encoding="utf-8", errors="replace")
+        if "gin-gonic/gin" not in text:
+            continue
+        for lineno, line in enumerate(text.splitlines(), 1):
+            for match in _GO_ROUTE.finditer(line):
+                entry_points.append({
+                    "file": str(path.relative_to(source_root)),
+                    "line": lineno,
+                    "kind": match.group("kind").upper(),
+                    "route": match.group("route") or "/",
+                })
+    return entry_points

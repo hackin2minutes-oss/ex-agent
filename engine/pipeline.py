@@ -231,7 +231,8 @@ def analyse_candidate(cand: dict, project_dir: Path, ctx: dict) -> dict:
     pre_status, pre_details = preconditions.evaluate(
         cand["curated"]["preconditions"] if cand["curated"] else None, project_dir)
     entry_points = (context.find_entry_points(project_dir) + context.find_python_entry_points(project_dir)
-                    + context.find_javascript_entry_points(project_dir))
+                    + context.find_javascript_entry_points(project_dir)
+                    + context.find_go_entry_points(project_dir))
     auth_hints = context.access_control_hints(project_dir)
 
     nvd = cand.get("nvd")

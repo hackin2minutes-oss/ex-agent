@@ -213,6 +213,41 @@ jobs:
 
       - name: Verify TypeScript app
         run: python3 -P scripts/verify_report.py codeql-ts-report --mode codeql --expect-call-site --expect-taint confirmed --expect-classification confirmed_exploitable --expect-cve CVE-2019-10744 --expect-gate failed
+
+      - name: Run engine on the Go vulnerable app (gate must fail)
+        run: |
+          set +e
+          PYTHONPATH=. python3 -P -m engine \
+            --project-dir tests/fixtures/go-app \
+            --deps tests/fixtures/go-app/go.sum \
+            --rules-dir rules \
+            --output-dir codeql-go-report \
+            --codeql "$PWD/codeql/codeql" \
+            --fail-on confirmed_exploitable \
+            --offline true \
+            --no-comment
+          code=$?
+          set -e
+          echo "engine exit code: $code"
+          test "$code" -eq 1
+
+      - name: Verify Go vulnerable app
+        run: python3 -P scripts/verify_report.py codeql-go-report --mode codeql --expect-call-site --expect-taint confirmed --expect-classification confirmed_exploitable --expect-cve CVE-2023-29401 --expect-gate failed
+
+      - name: Run engine on the Go safe app (gate must pass)
+        run: |
+          PYTHONPATH=. python3 -P -m engine \
+            --project-dir tests/fixtures/go-app-safe \
+            --deps tests/fixtures/go-app-safe/go.sum \
+            --rules-dir rules \
+            --output-dir codeql-go-safe-report \
+            --codeql "$PWD/codeql/codeql" \
+            --fail-on confirmed_exploitable \
+            --offline true \
+            --no-comment
+
+      - name: Verify Go safe app
+        run: python3 -P scripts/verify_report.py codeql-go-safe-report --mode codeql --expect-call-site --expect-classification vulnerable_function_reachable --expect-cve CVE-2023-29401 --expect-gate passed
       - name: Upload report
         if: always()
         uses: actions/upload-artifact@v7

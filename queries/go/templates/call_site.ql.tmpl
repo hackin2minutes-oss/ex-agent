@@ -1,0 +1,13 @@
+/**
+ * @name Call to {{CLASS}}.{{METHOD}}
+ * @description Finds application call sites of a vulnerable library method.
+ * @id sawone/go-call-{{ID}}
+ * @kind problem
+ * @problem.severity warning
+ */
+
+import go
+
+from DataFlow::MethodCallNode call
+where call.getTarget().hasQualifiedName("{{PACKAGE}}", "{{CLASS}}", "{{METHOD}}")
+select call.asExpr(), "Calls {{CLASS}}.{{METHOD}}()"

@@ -22,6 +22,7 @@ LANGUAGES = {
     "java": {"codeql": "java", "build": True},
     "python": {"codeql": "python", "build": False},
     "javascript": {"codeql": "javascript", "build": False},
+    "go": {"codeql": "go", "build": False},
 }
 
 
@@ -36,6 +37,10 @@ def split_symbol(symbol: str, language: str = "java") -> tuple[str, str, str]:
     if language in ("python", "javascript"):
         module, function = symbol.rsplit(".", 1)
         return module, "", function
+    if language == "go":
+        package, _, member = symbol.partition("#")
+        receiver, method = member.rsplit(".", 1)
+        return package, receiver, method
     qualified_class, method = symbol.rsplit(".", 1)
     package, simple_class = qualified_class.rsplit(".", 1)
     return package, simple_class, method

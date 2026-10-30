@@ -1,0 +1,40 @@
+/**
+ * @name Request input reaches {{CLASS}}.{{METHOD}}
+ * @description Data flow from gin request accessors (Query, PostForm, Param and similar)
+ *              to the second argument of a vulnerable library method.
+ * @id sawone/go-taint-{{ID}}
+ * @kind path-problem
+ * @problem.severity error
+ */
+
+import go
+import semmle.go.dataflow.TaintTracking
+
+predicate isGinRequestInput(DataFlow::Node source) {
+  exists(DataFlow::MethodCallNode call, string name |
+    (name = "Query" or name = "PostForm" or name = "Param" or name = "GetHeader" or
+     name = "DefaultQuery" or name = "DefaultPostForm" or name = "Cookie") and
+    call.getTarget().hasQualifiedName("github.com/gin-gonic/gin", "Context", name) and
+    source = call.getResult()
+  )
+}
+
+module VulnConfig implements DataFlow::ConfigSig {
+  predicate isSource(DataFlow::Node source) { isGinRequestInput(source) }
+
+  predicate isSink(DataFlow::Node sink) {
+    exists(DataFlow::MethodCallNode call |
+      call.getTarget().hasQualifiedName("{{PACKAGE}}", "{{CLASS}}", "{{METHOD}}") and
+      sink = call.getArgument(1)
+    )
+  }
+}
+
+module VulnFlow = TaintTracking::Global<VulnConfig>;
+
+import VulnFlow::PathGraph
+
+from VulnFlow::PathNode source, VulnFlow::PathNode sink
+where VulnFlow::flowPath(source, sink)
+select sink.getNode(), source, sink, "Request input flows into {{CLASS}}.{{METHOD}}()",
+  source.getNode(), "request input"
