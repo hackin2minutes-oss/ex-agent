@@ -24,7 +24,8 @@ def _location(finding: dict) -> dict | None:
     region = {"startLine": loc["start_line"], "endLine": loc["end_line"]}
     if loc.get("start_col") is not None:  # some scanners report lines only
         region["startColumn"] = loc["start_col"]
-        region["endColumn"] = loc["end_col"]
+        if loc.get("end_col") is not None:  # a null endColumn is not valid SARIF; omit it instead
+            region["endColumn"] = loc["end_col"]
     return {"physicalLocation": {"artifactLocation": {"uri": loc["path"]}, "region": region}}
 
 
