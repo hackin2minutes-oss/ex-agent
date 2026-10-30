@@ -3,8 +3,10 @@
 ## Coverage
 
 - Java with Spring MVC request parameters is the only language with a call-graph and taint analysis. Other languages are not analysed.
-- Dependency input: Maven `dependency:tree` text, Gradle `dependencies` text, npm `package-lock.json`, pip `requirements.txt` pins, and the normalised JSON format. Other lockfile and SBOM formats are not supported.
-- Version comparison is implemented for Maven and npm only. Other ecosystems return UNKNOWN for version applicability.
+- Dependency input: Maven `dependency:tree` text, Gradle `dependencies` text, npm `package-lock.json`, yarn.lock (v1 and Berry), pnpm-lock.yaml, pip `requirements.txt` pins, poetry.lock, uv.lock, Pipfile.lock, go.sum, Cargo.lock, composer.lock, Gemfile.lock, NuGet packages.lock.json, and the normalised JSON format.
+- Lockfile parsers are tested with hand-written samples in `tests/test_lockfiles.py`. They have not been checked against lockfiles produced by the real package managers.
+- CycloneDX and SPDX SBOMs are not ingested.
+- Version comparison is implemented for Maven and npm only. Other ecosystems rely on the OSV answer for the exact version.
 
 ## Analysis
 
@@ -20,7 +22,7 @@
 
 - OSV, EPSS and CISA KEV only. GHSA and NVD adapters are not implemented.
 - Live lookups have not been verified from the CI runner. The CI jobs run offline, and the clients are tested with recorded responses.
-- No retry or rate-limit handling beyond a single request per lookup.
+- Retries: up to three attempts for timeouts, connection errors, 429 and 5xx responses, honouring Retry-After up to 60 seconds. Other errors are not retried.
 - Fix-commit symbol derivation is over-approximate and is reported as derived.
 
 ## Output and GitHub

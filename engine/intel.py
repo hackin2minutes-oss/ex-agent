@@ -8,6 +8,7 @@ turned into a zero score or a "not exploited" claim.
 import hashlib
 import json
 import time
+import urllib.error
 import urllib.request
 from pathlib import Path
 
@@ -16,6 +17,9 @@ EPSS_URL = "https://api.first.org/data/v1/epss"
 KEV_URL = "https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json"
 EPSS_BATCH = 100
 USER_AGENT = "exploitability-agent/0.1"
+MAX_ATTEMPTS = 3
+RETRYABLE_STATUS = {429, 500, 502, 503, 504}
+MAX_RETRY_AFTER_SECONDS = 60
 
 
 def http_fetch(url: str, body: dict | None = None, timeout: int = 30) -> bytes:
@@ -44,15 +48,32 @@ def normalise_osv(vuln: dict) -> dict:
     }
 
 
+def _is_retryable(exc: Exception) -> bool:
+    if isinstance(exc, urllib.error.HTTPError):
+        return exc.code in RETRYABLE_STATUS
+    return isinstance(exc, (urllib.error.URLError, TimeoutError, ConnectionError))
+
+
+def _retry_after(exc: Exception) -> float | None:
+    headers = getattr(exc, "headers", None)
+    value = headers.get("Retry-After") if headers else None
+    try:
+        return min(float(value), MAX_RETRY_AFTER_SECONDS) if value else None
+    except ValueError:
+        return None
+
+
 class Intel:
     def __init__(self, cache_dir: Path | None = None, offline: bool = False,
-                 fetch=http_fetch, ttl_seconds: int = 86400, clock=time.time):
+                 fetch=http_fetch, ttl_seconds: int = 86400, clock=time.time, sleep=time.sleep):
         self.cache_dir = Path(cache_dir) if cache_dir else None
         self.offline = offline
         self._fetch = fetch
         self._ttl = ttl_seconds
         self._clock = clock
+        self._sleep = sleep
         self.status: dict[str, str] = {}
+        self.health: dict[str, dict] = {}
 
     def _request(self, source: str, url: str, body: dict | None = None) -> bytes | None:
         if self.offline:
@@ -63,11 +84,24 @@ class Intel:
         if cached is not None:
             self.status.setdefault(source, "ok (cached)")
             return cached
-        try:
-            raw = self._fetch(url, body)
-        except Exception as exc:  # network, TLS and HTTP errors are all reported
-            self.status[source] = f"unavailable: {type(exc).__name__}: {exc}"
-            return None
+
+        health = self.health.setdefault(source, {"requests": 0, "succeeded": 0, "failed": 0,
+                                                 "retries": 0, "last_error": None})
+        health["requests"] += 1
+        for attempt in range(1, MAX_ATTEMPTS + 1):
+            try:
+                raw = self._fetch(url, body)
+                break
+            except Exception as exc:  # network, TLS and HTTP errors are all reported
+                if attempt < MAX_ATTEMPTS and _is_retryable(exc):
+                    health["retries"] += 1
+                    self._sleep(_retry_after(exc) or float(2 ** (attempt - 1)))
+                    continue
+                health["failed"] += 1
+                health["last_error"] = f"{type(exc).__name__}: {exc}"
+                self.status[source] = f"unavailable: {type(exc).__name__}: {exc}"
+                return None
+        health["succeeded"] += 1
         self._write_cache(key, raw)
         self.status.setdefault(source, "ok")
         return raw

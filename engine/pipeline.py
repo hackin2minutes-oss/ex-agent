@@ -14,7 +14,7 @@ from engine import callsites, codeql, context, exploitability as xp, ingest, int
 from engine import policy, preconditions, report, symbols, verdict, versions
 
 SHIPPED_SCOPE_EXCLUDED = {"test", "dev"}
-ECOSYSTEMS_QUERIED = {"Maven", "npm", "PyPI"}
+ECOSYSTEMS_QUERIED = {"Maven", "npm", "PyPI", "Go", "crates.io", "Packagist", "RubyGems", "NuGet"}
 TOOL_VERSION = "0.1.0"
 
 
@@ -324,6 +324,7 @@ def run(project_dir: Path, deps_path: Path | None, rules_dir: Path, output_dir: 
                      for v in sorted({f["verdict"] for f in findings})},
         "analysis_mode": "codeql" if modes == {"codeql"} else "text_scan" if findings else "none",
         "intel": dict(intel.status),
+        "intel_health": {source: dict(h) for source, h in intel.health.items()},
         "classifications": {c: sum(1 for f in findings if f["classification"] == c)
                             for c in sorted({f["classification"] for f in findings})},
         "policy": policy_summary,

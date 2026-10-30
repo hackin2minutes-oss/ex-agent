@@ -19,7 +19,17 @@ from engine import versions
 RESOLVED_FILE_NAMES = [
     "resolved-deps.json",
     "package-lock.json",
+    "yarn.lock",
+    "pnpm-lock.yaml",
     "requirements.txt",
+    "poetry.lock",
+    "uv.lock",
+    "Pipfile.lock",
+    "go.sum",
+    "Cargo.lock",
+    "composer.lock",
+    "Gemfile.lock",
+    "packages.lock.json",
     "maven-tree.txt",
     "gradle-deps.txt",
 ]
@@ -132,6 +142,9 @@ def parse_requirements(text: str) -> list[dict]:
 
 def detect_and_parse(path: Path) -> list[dict]:
     text = path.read_text(encoding="utf-8")
+    from engine import lockfiles  # local import: lockfiles depends on this module
+    if path.name in lockfiles.PARSERS:
+        return lockfiles.PARSERS[path.name](text)
     if path.suffix == ".json":
         data = json.loads(text)
         if "packages" in data:

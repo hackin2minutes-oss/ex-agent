@@ -75,6 +75,65 @@ class IntelTest(unittest.TestCase):
         self.assertEqual(len(calls), 1)
         self.assertEqual(second.status["osv"], "ok (cached)")
 
+    def test_rate_limit_is_retried_and_honours_retry_after(self):
+        import urllib.error
+        responses = [urllib.error.HTTPError("u", 429, "Too Many", {"Retry-After": "3"}, None),
+                     json.dumps({"vulns": []}).encode()]
+        slept = []
+
+        def fetch(url, body=None):
+            item = responses.pop(0)
+            if isinstance(item, Exception):
+                raise item
+            return item
+
+        client = intel_module.Intel(fetch=fetch, sleep=slept.append)
+        self.assertEqual(client.osv_advisories("Maven", "a:b", "1.0"), [])
+        self.assertEqual(slept, [3.0])
+        self.assertEqual(client.health["osv"],
+                         {"requests": 1, "succeeded": 1, "failed": 0, "retries": 1, "last_error": None})
+        self.assertEqual(client.status["osv"], "ok")
+
+    def test_persistent_server_error_gives_up_after_three_attempts(self):
+        import urllib.error
+        calls = []
+
+        def fetch(url, body=None):
+            calls.append(url)
+            raise urllib.error.HTTPError(url, 503, "Unavailable", {}, None)
+
+        client = intel_module.Intel(fetch=fetch, sleep=lambda s: None)
+        self.assertIsNone(client.kev_cves())
+        self.assertEqual(len(calls), 3)
+        self.assertEqual(client.health["kev"]["failed"], 1)
+        self.assertTrue(client.status["kev"].startswith("unavailable: HTTPError"))
+
+    def test_permanent_client_error_is_not_retried(self):
+        import urllib.error
+        calls = []
+
+        def fetch(url, body=None):
+            calls.append(url)
+            raise urllib.error.HTTPError(url, 404, "Not Found", {}, None)
+
+        client = intel_module.Intel(fetch=fetch, sleep=lambda s: None)
+        self.assertIsNone(client.kev_cves())
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(client.health["kev"]["retries"], 0)
+
+    def test_network_error_is_retried(self):
+        calls = []
+
+        def fetch(url, body=None):
+            calls.append(url)
+            if len(calls) == 1:
+                raise ConnectionResetError("reset by peer")
+            return json.dumps({"vulnerabilities": []}).encode()
+
+        client = intel_module.Intel(fetch=fetch, sleep=lambda s: None)
+        self.assertEqual(client.kev_cves(), set())
+        self.assertEqual(len(calls), 2)
+
     def test_commit_diff_only_for_github_commit_urls(self):
         fetch, calls = recording_fetch({})
         client = intel_module.Intel(fetch=fetch)

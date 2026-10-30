@@ -188,7 +188,7 @@ class OsvDrivenPipelineTest(PipelineTestCase):
             raise ConnectionError("gateway answered 403")
         summary, _ = self.run_pipeline(
             self.project, self.deps, rules=self.tmp / "no-rules",
-            intel=intel_module.Intel(fetch=failing))
+            intel=intel_module.Intel(fetch=failing, sleep=lambda s: None))
         self.assertEqual(summary["findings"], 0)
         self.assertTrue(summary["intel"]["osv"].startswith("unavailable"))
 
