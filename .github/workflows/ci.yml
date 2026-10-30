@@ -193,6 +193,26 @@ jobs:
 
       - name: Verify JavaScript safe app
         run: python3 -P scripts/verify_report.py codeql-js-safe-report --mode codeql --expect-classification not_reachable_within_analysed_scope --expect-cve CVE-2019-10744 --expect-gate passed
+
+      - name: Run engine on the TypeScript app (gate must fail)
+        run: |
+          set +e
+          PYTHONPATH=. python3 -P -m engine \
+            --project-dir tests/fixtures/ts-app \
+            --deps tests/fixtures/ts-app/package-lock.json \
+            --rules-dir rules \
+            --output-dir codeql-ts-report \
+            --codeql "$PWD/codeql/codeql" \
+            --fail-on confirmed_exploitable \
+            --offline true \
+            --no-comment
+          code=$?
+          set -e
+          echo "engine exit code: $code"
+          test "$code" -eq 1
+
+      - name: Verify TypeScript app
+        run: python3 -P scripts/verify_report.py codeql-ts-report --mode codeql --expect-call-site --expect-taint confirmed --expect-classification confirmed_exploitable --expect-cve CVE-2019-10744 --expect-gate failed
       - name: Upload report
         if: always()
         uses: actions/upload-artifact@v7
