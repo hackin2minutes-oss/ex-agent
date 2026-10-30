@@ -90,7 +90,7 @@ jobs:
             --rules-dir rules \
             --output-dir codeql-report \
             --codeql "$PWD/codeql/codeql" \
-            --build-command "sh tests/fixtures/build.sh" \
+            --build-command "sh $PWD/tests/fixtures/build.sh" \
             --fail-on confirmed_exploitable \
             --offline true \
             --no-comment
