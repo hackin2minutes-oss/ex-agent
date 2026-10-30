@@ -94,8 +94,13 @@ Head `7e13c45` on PR #2. Infrastructure and application failures are reported se
   run logs `Resource not accessible by integration`. That is probably **infrastructure**
   (token permissions), but it is not proven. Neither failure is an application test
   failure. The same steps passed on the last green base run.
-- **CodeQL call-site and taint** job: still running at the time of writing. The CodeQL CLI
-  was not available locally, so these jobs are the only check of the CodeQL path.
+- **CodeQL call-site and taint** job on `7e13c45`: all 24 verify and run steps passed,
+  including the Python vulnerable and safe apps, the taint positive control, and the
+  JavaScript, TypeScript and Go vulnerable apps with `--exposure internet`, which must
+  fail the gate, and the safe apps, which must pass it. The only failed step was `Upload
+  report`, which failed on the artifact storage quota (**infrastructure**). This is the
+  first real CodeQL evidence in this change. On `12c54cf` the job was still running when
+  this was written.
 - The re-run of the failed job was refused while the workflow was still in progress. The
   re-run is pending.
 
@@ -151,6 +156,12 @@ does not run here.
 **Tests.** `tests/test_exploitability.py`: `internet` gives `CONFIRMED_EXPLOITABLE`;
 `unknown` and `internal` give `POTENTIALLY_EXPLOITABLE` with the reason; the default is
 `unknown`; an invalid value is rejected; non-clean outcomes are unaffected.
+
+**CodeQL evidence (CI, `7e13c45`).** The JavaScript, TypeScript and Go vulnerable runs,
+which declare `--exposure internet`, each passed their verify step, which expects
+`confirmed_exploitable` and a failed gate. The Python and safe runs passed their own
+expectations. This is CI evidence for the classifier path. It does not show that the
+exposure gate blocks an undeclared run, which remains covered only by unit tests.
 
 **Residual.** Exposure is an operator claim, not something the engine verifies. A wrong
 declaration produces a wrong top verdict. This is the intended trade-off and is stated in
@@ -211,6 +222,14 @@ safe app (constant filename) is unverified.
 | Unsupported language | unverified (UNKNOWN) | pass |
 | `sink` on `mitigated_by` (invalid) | rejected | pass |
 | Invalid argument position (invalid) | rejected | pass |
+
+**CodeQL evidence (CI, `7e13c45`).** The sink-check rules are exercised by the same CodeQL
+jobs as F-02. The Python vulnerable app, whose `yaml.load` argument is request data, is
+verified with `reachable_preconditions_unknown` as its expectation. The Go safe app, whose
+`FileAttachment` argument is a constant, is verified with `vulnerable_function_reachable`
+and a passed gate. The JavaScript and Go vulnerable apps reach `satisfied` on their
+request arguments and pass their verify steps. The lexical taint paths have no CodeQL-side
+check of their own.
 
 **Residual.** Interprocedural flow, aliasing across functions, and object-field taint are
 not modelled. Those cases are `unverified`. Go and JavaScript taint is file-scoped and

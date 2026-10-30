@@ -73,7 +73,7 @@ fixtures were **not** changed to make tests pass, with two exceptions, both list
 
 | Item | Why | What would settle it |
 |---|---|---|
-| CodeQL CI jobs (JS, TS, Go, Python, taint control) | CodeQL CLI not installed; release downloads blocked | Push the branch; the `CodeQL call-site and taint` job |
+| CodeQL CI jobs (JS, TS, Go, Python, taint control) | Ran in CI on `7e13c45`: all 24 verify and run steps passed. Only `Upload report` failed (artifact quota, infrastructure). Not run locally | Result recorded in `REMEDIATION_REPORT.md` |
 | Docker image build and non-root check | Docker daemon not running here | Push the branch; the new step in the `Action` job |
 | Action run on the wrapper with `exposure` input | Requires the image and CI | Same CI run |
 | Live OSV, GHSA, NVD, EPSS, KEV | Egress denied for these hosts | Offline and recorded-response tests only |
