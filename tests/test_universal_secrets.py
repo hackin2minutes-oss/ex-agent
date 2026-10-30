@@ -10,6 +10,7 @@ These tests also check that the credential value does not appear in any output f
 import json
 import shutil
 import tempfile
+import zlib
 import unittest
 from pathlib import Path
 
@@ -36,6 +37,29 @@ def assess_document(document, project_dir, exposure="unknown"):
                                 {"project_dir": Path(project_dir), "exposure": exposure})
 
 
+
+def _readable_bytes(path: Path) -> bytes:
+    """The bytes a reader could see. A PDF's text is in compressed streams, so those are decompressed first."""
+    data = path.read_bytes()
+    if not path.name.endswith(".pdf"):
+        return data
+    streams = []
+    position = 0
+    while True:
+        start = data.find(b"stream", position)
+        if start < 0:
+            break
+        begin = data.find(b"\n", start) + 1
+        end = data.find(b"endstream", begin)
+        if end < 0:
+            break
+        try:
+            streams.append(zlib.decompress(data[begin:end]))
+        except zlib.error:
+            streams.append(data[begin:end])
+        position = end + len(b"endstream")
+    return data + b"".join(streams)
+
 class RealGitleaksFixtureTest(unittest.TestCase):
     def test_finding_is_potentially_exploitable_with_medium_confidence(self):
         (assessed,) = assess_document(load_real(), PROJECT)
@@ -50,7 +74,9 @@ class RealGitleaksFixtureTest(unittest.TestCase):
         self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
         universal_run.run(REAL, PROJECT, tmp / "out", exposure="internet")
         for path in (tmp / "out").iterdir():
-            self.assertNotIn(FABRICATED, path.read_text(encoding="utf-8"), path.name)
+            if path.is_dir():
+                continue
+            self.assertNotIn(FABRICATED.encode(), _readable_bytes(path), path.name)
 
     def test_redacted_record_keeps_a_digest_not_the_value(self):
         findings, _ = GitleaksAdapter().parse(load_real(), {"target": "t"})

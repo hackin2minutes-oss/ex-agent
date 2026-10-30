@@ -25,7 +25,7 @@ import signal
 import sys
 from pathlib import Path
 
-from engine import code_scanning, deployment_context, evidence_graph, intel_snapshot, provenance, weakness
+from engine import code_scanning, deployment_context, evidence_graph, intel_snapshot, provenance, report_pdf, weakness
 from engine import findings as sca_findings
 from engine import pipeline, report, sca_universal, universal, universal_report
 from engine import guidance
@@ -367,6 +367,7 @@ def run(inputs, project_dir: Path, output_dir: Path, *, exposure: str = "unknown
         {"nodes": list(graph.nodes.values()), "edges": graph.edges,
          "attack_paths": summary["evidence_graph"]["attack_paths"],
          "not_correlated": summary["evidence_graph"]["not_correlated"]}, indent=2) + "\n", encoding="utf-8")
+    report_pdf.build(assessed, summary, TOOL_VERSION, output_dir / "universal-report.pdf")
     return summary
 
 
