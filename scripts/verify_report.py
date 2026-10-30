@@ -18,6 +18,7 @@ def main(argv: list[str]) -> int:
     parser.add_argument("--expect-taint", choices=["confirmed", "not_found", "not_analysed"])
     parser.add_argument("--expect-classification", required=True)
     parser.add_argument("--expect-cve", default=None)
+    parser.add_argument("--expect-gate", choices=["passed", "failed"], default="passed")
     args = parser.parse_args(argv)
 
     errors: list[str] = []
@@ -39,8 +40,9 @@ def main(argv: list[str]) -> int:
         errors.append(f"analysis_mode is {summary['analysis_mode']}, expected {args.mode}")
     if summary["findings"] != 1 or len(findings) != 1:
         errors.append(f"expected 1 finding, got {summary['findings']}")
-    if summary["gate_failed"]:
-        errors.append("gate failed")
+    expected_gate_failed = args.expect_gate == "failed"
+    if summary["gate_failed"] != expected_gate_failed:
+        errors.append(f"gate {'passed' if summary['gate_failed'] else 'failed'}, expected {args.expect_gate}")
 
     for finding in findings:
         if finding["classification"] != args.expect_classification:
