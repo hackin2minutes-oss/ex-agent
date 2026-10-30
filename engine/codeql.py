@@ -52,6 +52,7 @@ def render_pack(pack_dir: Path, symbol: str) -> dict[str, Path]:
 
 
 def build_database(codeql: str, project_dir: Path, db_dir: Path, build_command: str | None) -> None:
+    db_dir.parent.mkdir(parents=True, exist_ok=True)  # CodeQL does not create the parent directory
     command = [codeql, "database", "create", str(db_dir), "--language=java",
                f"--source-root={project_dir}", "--overwrite"]
     if build_command:
