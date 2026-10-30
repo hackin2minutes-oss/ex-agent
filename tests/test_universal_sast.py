@@ -59,7 +59,7 @@ class RealSemgrepFixtureTest(unittest.TestCase):
         assessment = self.by_location[("app.py", 6)]
         self.assertEqual(assessment["verdict"], POTENTIALLY_EXPLOITABLE)
         self.assertEqual(assessment["confidence"]["level"], "LOW")
-        self.assertIn("username", assessment["evidence"][0]["detail"])
+        self.assertIn("username", " ".join(item["detail"] for item in assessment["evidence"]))
 
     def test_literal_sql_argument_is_not_exploitable_at_that_call_site(self):
         assessment = self.by_location[("app.py", 12)]
@@ -195,7 +195,10 @@ class UniversalRunEndToEndTest(unittest.TestCase):
         summary = universal_run.run(REAL, PROJECT, self.out)
 
         self.assertEqual(summary["findings"], 3)
-        self.assertEqual(summary["verdicts"]["POTENTIALLY_EXPLOITABLE"], 2)
+        # This project has no route. The SQL call's argument is not a request value, so no attack path is known and
+        # the call is UNKNOWN, not potential. (Earlier, it was POTENTIALLY_EXPLOITABLE without any path.)
+        self.assertEqual(summary["verdicts"]["UNKNOWN"], 1)
+        self.assertEqual(summary["verdicts"]["POTENTIALLY_EXPLOITABLE"], 1)
         self.assertEqual(summary["verdicts"]["NOT_EXPLOITABLE"], 1)
         self.assertEqual(summary["verdicts"]["CONFIRMED_EXPLOITABLE"], 0)
 
@@ -208,13 +211,13 @@ class UniversalRunEndToEndTest(unittest.TestCase):
         levels = {r["locations"][0]["physicalLocation"]["artifactLocation"]["uri"]
                   + ":" + str(r["locations"][0]["physicalLocation"]["region"]["startLine"]):
                   r["level"] for r in sarif["runs"][0]["results"]}
-        self.assertEqual(levels, {"app.py:6": "warning", "app.py:12": "note",
+        self.assertEqual(levels, {"app.py:6": "note", "app.py:12": "note",
                                   "handler.js:2": "warning"})
         messages = [r["message"]["text"] for r in sarif["runs"][0]["results"]]
         self.assertTrue(all("reported by: semgrep" in m for m in messages))
 
         markdown = (self.out / "universal-report.md").read_text(encoding="utf-8")
-        self.assertIn("| POTENTIALLY_EXPLOITABLE | LOW | `fixture-sql-execute` | app.py:6 |", markdown)
+        self.assertIn("| UNKNOWN | LOW | `fixture-sql-execute` | app.py:6 |", markdown)
         self.assertIn("### Limitations", markdown)
 
     def test_step_summary_receives_the_markdown(self):

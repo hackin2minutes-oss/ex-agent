@@ -1,0 +1,6 @@
+{
+  "description": "Same flow as 01, but the application is declared internal, so attacker reach is not established.",
+  "exposure": "internal",
+  "truth": 1,
+  "expected_verdict": "POTENTIALLY_EXPLOITABLE"
+}

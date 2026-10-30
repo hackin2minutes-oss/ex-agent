@@ -95,6 +95,24 @@ def to_markdown(summary: dict, assessed: list[dict]) -> str:
     else:
         lines += ["No findings were imported.", ""]
 
+    paths = summary.get("attack_paths") or []
+    if paths:
+        lines += ["### Traced attack paths", ""]
+        for item in paths:
+            hops = " -> ".join(f"`{h['function']}` ({h['file']}:{h['line']})" for h in item["hops"])
+            lines.append(f"- {item['verdict']} `{item['rule']}`: {hops}")
+        lines.append("")
+    open_verdicts = {"CONFIRMED_EXPLOITABLE", "POTENTIALLY_EXPLOITABLE", "UNKNOWN", "ANALYSIS_INCOMPLETE"}
+    steps = [f for f in assessed if f["assessment"]["verdict"] in open_verdicts
+             and not f["assessment"]["next_investigation"].startswith("None:")]
+    if steps:
+        lines += ["### Next investigation steps", ""]
+        for finding in steps[:20]:
+            loc = finding.get("location") or {}
+            where = f"{loc.get('path')}:{loc.get('start_line')}" if loc else "-"
+            lines.append(f"- `{finding['vulnerability']['rule_id']}` ({where}): "
+                         f"{finding['assessment']['next_investigation']}")
+        lines.append("")
     if summary["diagnostics"]:
         lines += ["### Scanner diagnostics", ""]
         lines += [f"- {text}" for text in summary["diagnostics"]]

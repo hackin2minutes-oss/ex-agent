@@ -326,3 +326,19 @@ def evaluate(rule_checks: list[dict] | None, source_root: Path) -> tuple[str, li
     else:
         aggregate = "unverified"
     return aggregate, results
+
+
+def classify_python_argument(node, names: dict) -> str:
+    """Public entry for the argument classifier: REQUEST, CONSTANT or UNKNOWN_ARG for one argument expression."""
+    return _python_arg_class(node, names)
+
+
+def assignments_in(function_node) -> dict:
+    """name -> list of value expressions assigned to it inside one function (used for argument tracing)."""
+    names: dict[str, list] = {}
+    for node in ast.walk(function_node):
+        if isinstance(node, ast.Assign):
+            for target in node.targets:
+                if isinstance(target, ast.Name):
+                    names.setdefault(target.id, []).append(node.value)
+    return names

@@ -1,0 +1,6 @@
+{
+  "description": "Same flow as 01 with no exposure declared.",
+  "exposure": "unknown",
+  "truth": 1,
+  "expected_verdict": "POTENTIALLY_EXPLOITABLE"
+}

@@ -1,0 +1,421 @@
+{
+  "metrics": {
+    "cases": 14,
+    "scored_cases": 12,
+    "true_positive": 7,
+    "false_positive": 1,
+    "true_negative": 4,
+    "false_negative": 0,
+    "undecided_exploitable": 0,
+    "undecided_not_exploitable": 0,
+    "precision": 0.875,
+    "recall": 1.0,
+    "recall_decided_only": 1.0,
+    "false_positive_rate": 0.2,
+    "false_negative_rate": 0.0,
+    "verdict_distribution": {
+      "CONFIRMED_EXPLOITABLE": 1,
+      "MITIGATED": 2,
+      "NOT_EXPLOITABLE": 1,
+      "NOT_REACHABLE": 1,
+      "POTENTIALLY_EXPLOITABLE": 7,
+      "UNKNOWN": 1
+    },
+    "decided_coverage": 0.923,
+    "total_seconds": 0.029,
+    "source_agreement": {
+      "compared": 14,
+      "identical_verdicts": 14,
+      "disagreements": []
+    }
+  },
+  "cases": [
+    {
+      "case": "01_route_request_concat_internet",
+      "truth": 1,
+      "expected": "CONFIRMED_EXPLOITABLE",
+      "verdicts": [
+        "CONFIRMED_EXPLOITABLE"
+      ],
+      "seconds": 0.0023,
+      "application": {
+        "entry_points": 1,
+        "possible_entry_points": 0,
+        "route_nodes_reached": 2,
+        "route_search_complete": true,
+        "route_search_incomplete_reasons": [],
+        "possible_search_complete": true,
+        "graph": {
+          "nodes": 2,
+          "edges": 1,
+          "unresolved_calls": 5,
+          "skipped_nodes": 0,
+          "skipped_edges": 0,
+          "parse_errors": 0,
+          "complete": true,
+          "incomplete_reasons": []
+        },
+        "module_level_called_functions": 0,
+        "dynamic_call_sites": 0
+      }
+    },
+    {
+      "case": "02_route_request_concat_internal",
+      "truth": 1,
+      "expected": "POTENTIALLY_EXPLOITABLE",
+      "verdicts": [
+        "POTENTIALLY_EXPLOITABLE"
+      ],
+      "seconds": 0.0017,
+      "application": {
+        "entry_points": 1,
+        "possible_entry_points": 0,
+        "route_nodes_reached": 1,
+        "route_search_complete": true,
+        "route_search_incomplete_reasons": [],
+        "possible_search_complete": true,
+        "graph": {
+          "nodes": 1,
+          "edges": 0,
+          "unresolved_calls": 5,
+          "skipped_nodes": 0,
+          "skipped_edges": 0,
+          "parse_errors": 0,
+          "complete": true,
+          "incomplete_reasons": []
+        },
+        "module_level_called_functions": 0,
+        "dynamic_call_sites": 0
+      }
+    },
+    {
+      "case": "03_route_request_concat_undeclared",
+      "truth": 1,
+      "expected": "POTENTIALLY_EXPLOITABLE",
+      "verdicts": [
+        "POTENTIALLY_EXPLOITABLE"
+      ],
+      "seconds": 0.0016,
+      "application": {
+        "entry_points": 1,
+        "possible_entry_points": 0,
+        "route_nodes_reached": 1,
+        "route_search_complete": true,
+        "route_search_incomplete_reasons": [],
+        "possible_search_complete": true,
+        "graph": {
+          "nodes": 1,
+          "edges": 0,
+          "unresolved_calls": 5,
+          "skipped_nodes": 0,
+          "skipped_edges": 0,
+          "parse_errors": 0,
+          "complete": true,
+          "incomplete_reasons": []
+        },
+        "module_level_called_functions": 0,
+        "dynamic_call_sites": 0
+      }
+    },
+    {
+      "case": "04_literal_sql_in_route",
+      "truth": 0,
+      "expected": "NOT_EXPLOITABLE",
+      "verdicts": [
+        "NOT_EXPLOITABLE"
+      ],
+      "seconds": 0.0022,
+      "application": {
+        "entry_points": 2,
+        "possible_entry_points": 0,
+        "route_nodes_reached": 2,
+        "route_search_complete": true,
+        "route_search_incomplete_reasons": [],
+        "possible_search_complete": true,
+        "graph": {
+          "nodes": 2,
+          "edges": 0,
+          "unresolved_calls": 4,
+          "skipped_nodes": 0,
+          "skipped_edges": 0,
+          "parse_errors": 0,
+          "complete": true,
+          "incomplete_reasons": []
+        },
+        "module_level_called_functions": 0,
+        "dynamic_call_sites": 0
+      }
+    },
+    {
+      "case": "05_helper_never_called",
+      "truth": 0,
+      "expected": "NOT_REACHABLE",
+      "verdicts": [
+        "NOT_REACHABLE"
+      ],
+      "seconds": 0.0023,
+      "application": {
+        "entry_points": 1,
+        "possible_entry_points": 0,
+        "route_nodes_reached": 1,
+        "route_search_complete": true,
+        "route_search_incomplete_reasons": [],
+        "possible_search_complete": true,
+        "graph": {
+          "nodes": 2,
+          "edges": 0,
+          "unresolved_calls": 4,
+          "skipped_nodes": 0,
+          "skipped_edges": 0,
+          "parse_errors": 0,
+          "complete": true,
+          "incomplete_reasons": []
+        },
+        "module_level_called_functions": 0,
+        "dynamic_call_sites": 0
+      }
+    },
+    {
+      "case": "06_request_passed_to_helper_param",
+      "truth": 1,
+      "expected": "POTENTIALLY_EXPLOITABLE",
+      "verdicts": [
+        "POTENTIALLY_EXPLOITABLE"
+      ],
+      "seconds": 0.0022,
+      "application": {
+        "entry_points": 1,
+        "possible_entry_points": 0,
+        "route_nodes_reached": 2,
+        "route_search_complete": true,
+        "route_search_incomplete_reasons": [],
+        "possible_search_complete": true,
+        "graph": {
+          "nodes": 2,
+          "edges": 1,
+          "unresolved_calls": 5,
+          "skipped_nodes": 0,
+          "skipped_edges": 0,
+          "parse_errors": 0,
+          "complete": true,
+          "incomplete_reasons": []
+        },
+        "module_level_called_functions": 0,
+        "dynamic_call_sites": 0
+      }
+    },
+    {
+      "case": "07_int_cast_before_concat",
+      "truth": 0,
+      "expected": "MITIGATED",
+      "verdicts": [
+        "MITIGATED"
+      ],
+      "seconds": 0.0023,
+      "application": {
+        "entry_points": 1,
+        "possible_entry_points": 0,
+        "route_nodes_reached": 1,
+        "route_search_complete": true,
+        "route_search_incomplete_reasons": [],
+        "possible_search_complete": true,
+        "graph": {
+          "nodes": 1,
+          "edges": 0,
+          "unresolved_calls": 7,
+          "skipped_nodes": 0,
+          "skipped_edges": 0,
+          "parse_errors": 0,
+          "complete": true,
+          "incomplete_reasons": []
+        },
+        "module_level_called_functions": 0,
+        "dynamic_call_sites": 0
+      }
+    },
+    {
+      "case": "08_parameterised_query",
+      "truth": 0,
+      "expected": "MITIGATED",
+      "verdicts": [
+        "MITIGATED"
+      ],
+      "seconds": 0.0022,
+      "application": {
+        "entry_points": 1,
+        "possible_entry_points": 0,
+        "route_nodes_reached": 1,
+        "route_search_complete": true,
+        "route_search_incomplete_reasons": [],
+        "possible_search_complete": true,
+        "graph": {
+          "nodes": 1,
+          "edges": 0,
+          "unresolved_calls": 5,
+          "skipped_nodes": 0,
+          "skipped_edges": 0,
+          "parse_errors": 0,
+          "complete": true,
+          "incomplete_reasons": []
+        },
+        "module_level_called_functions": 0,
+        "dynamic_call_sites": 0
+      }
+    },
+    {
+      "case": "09_library_function_no_routes",
+      "truth": null,
+      "expected": "UNKNOWN",
+      "verdicts": [
+        "UNKNOWN"
+      ],
+      "seconds": 0.002,
+      "application": {
+        "entry_points": 0,
+        "possible_entry_points": 0,
+        "route_nodes_reached": 0,
+        "route_search_complete": true,
+        "route_search_incomplete_reasons": [],
+        "possible_search_complete": true,
+        "graph": {
+          "nodes": 1,
+          "edges": 0,
+          "unresolved_calls": 3,
+          "skipped_nodes": 0,
+          "skipped_edges": 0,
+          "parse_errors": 0,
+          "complete": true,
+          "incomplete_reasons": []
+        },
+        "module_level_called_functions": 0,
+        "dynamic_call_sites": 0
+      }
+    },
+    {
+      "case": "10_dynamic_dispatch_to_handler",
+      "truth": 1,
+      "expected": "POTENTIALLY_EXPLOITABLE",
+      "verdicts": [
+        "POTENTIALLY_EXPLOITABLE"
+      ],
+      "seconds": 0.0025,
+      "application": {
+        "entry_points": 1,
+        "possible_entry_points": 1,
+        "route_nodes_reached": 1,
+        "route_search_complete": false,
+        "route_search_incomplete_reasons": [
+          "dynamic_call_on_path"
+        ],
+        "possible_search_complete": true,
+        "graph": {
+          "nodes": 2,
+          "edges": 0,
+          "unresolved_calls": 8,
+          "skipped_nodes": 0,
+          "skipped_edges": 0,
+          "parse_errors": 0,
+          "complete": true,
+          "incomplete_reasons": []
+        },
+        "module_level_called_functions": 0,
+        "dynamic_call_sites": 1
+      }
+    },
+    {
+      "case": "11_unparseable_python",
+      "truth": null,
+      "expected": "UNKNOWN",
+      "verdicts": [],
+      "seconds": 0.001,
+      "application": null
+    },
+    {
+      "case": "12_module_level_call_with_constant",
+      "truth": 0,
+      "expected": "POTENTIALLY_EXPLOITABLE",
+      "verdicts": [
+        "POTENTIALLY_EXPLOITABLE"
+      ],
+      "seconds": 0.0022,
+      "application": {
+        "entry_points": 1,
+        "possible_entry_points": 1,
+        "route_nodes_reached": 1,
+        "route_search_complete": true,
+        "route_search_incomplete_reasons": [],
+        "possible_search_complete": true,
+        "graph": {
+          "nodes": 2,
+          "edges": 0,
+          "unresolved_calls": 4,
+          "skipped_nodes": 0,
+          "skipped_edges": 0,
+          "parse_errors": 0,
+          "complete": true,
+          "incomplete_reasons": []
+        },
+        "module_level_called_functions": 1,
+        "dynamic_call_sites": 0
+      }
+    },
+    {
+      "case": "13_cross_file_route_to_helper",
+      "truth": 1,
+      "expected": "POTENTIALLY_EXPLOITABLE",
+      "verdicts": [
+        "POTENTIALLY_EXPLOITABLE"
+      ],
+      "seconds": 0.0024,
+      "application": {
+        "entry_points": 1,
+        "possible_entry_points": 0,
+        "route_nodes_reached": 2,
+        "route_search_complete": true,
+        "route_search_incomplete_reasons": [],
+        "possible_search_complete": true,
+        "graph": {
+          "nodes": 2,
+          "edges": 1,
+          "unresolved_calls": 5,
+          "skipped_nodes": 0,
+          "skipped_edges": 0,
+          "parse_errors": 0,
+          "complete": true,
+          "incomplete_reasons": []
+        },
+        "module_level_called_functions": 0,
+        "dynamic_call_sites": 0
+      }
+    },
+    {
+      "case": "14_html_escape_not_sql_safe",
+      "truth": 1,
+      "expected": "POTENTIALLY_EXPLOITABLE",
+      "verdicts": [
+        "POTENTIALLY_EXPLOITABLE"
+      ],
+      "seconds": 0.0024,
+      "application": {
+        "entry_points": 1,
+        "possible_entry_points": 0,
+        "route_nodes_reached": 1,
+        "route_search_complete": true,
+        "route_search_incomplete_reasons": [],
+        "possible_search_complete": true,
+        "graph": {
+          "nodes": 1,
+          "edges": 0,
+          "unresolved_calls": 6,
+          "skipped_nodes": 0,
+          "skipped_edges": 0,
+          "parse_errors": 0,
+          "complete": true,
+          "incomplete_reasons": []
+        },
+        "module_level_called_functions": 0,
+        "dynamic_call_sites": 0
+      }
+    }
+  ]
+}

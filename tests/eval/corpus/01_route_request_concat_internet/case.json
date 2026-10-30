@@ -1,0 +1,6 @@
+{
+  "description": "Request value concatenated into SQL through a helper, reached from a route; internet-facing.",
+  "exposure": "internet",
+  "truth": 1,
+  "expected_verdict": "CONFIRMED_EXPLOITABLE"
+}

@@ -1,0 +1,6 @@
+{
+  "description": "A route in one module reaches a sink in another through an import. The request value is a parameter.",
+  "exposure": "internet",
+  "truth": 1,
+  "expected_verdict": "POTENTIALLY_EXPLOITABLE"
+}

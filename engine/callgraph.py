@@ -74,6 +74,21 @@ class Graph:
         }
 
 
+def _import_candidates(package: str, module: str, level: int) -> list[str]:
+    """Module names a `from ... import` could refer to in this project. An absolute import is tried as written,
+    and also as a sibling inside the importer's package, which is how a flat package layout resolves it. A relative
+    import (level > 0) is resolved from the importer's package."""
+    if level:
+        parts = package.split(".") if package else []
+        base = parts[:len(parts) - (level - 1)] if level - 1 <= len(parts) else []
+        prefix = ".".join(base)
+        return [".".join(p for p in (prefix, module) if p)]
+    candidates = [module]
+    if package:
+        candidates.append(f"{package}.{module}")
+    return candidates
+
+
 def _module_name(root: Path, path: Path) -> str:
     return ".".join(path.relative_to(root).with_suffix("").parts)
 
@@ -129,10 +144,12 @@ def build(root: Path, max_nodes: int = MAX_NODES, max_edges: int = MAX_EDGES) ->
             continue
         defined.setdefault(module, {})
         imports.setdefault(module, {})
+        package = module.rsplit(".", 1)[0] if "." in module else ""
         for stmt in ast.walk(tree):
-            if isinstance(stmt, ast.ImportFrom) and stmt.module:
-                for alias in stmt.names:
-                    imports[module][alias.asname or alias.name] = stmt.module
+            if isinstance(stmt, ast.ImportFrom) and (stmt.module or stmt.level):
+                for candidate in _import_candidates(package, stmt.module or "", stmt.level):
+                    for alias in stmt.names:
+                        imports[module].setdefault(alias.asname or alias.name, []).append(candidate)
 
         def visit(body, prefix=""):
             for node in body:
@@ -170,8 +187,11 @@ def build(root: Path, max_nodes: int = MAX_NODES, max_edges: int = MAX_EDGES) ->
         if name in defined.get(module, {}):
             targets, resolution = defined[module][name], "ast-same-module"
         elif name in imports.get(module, {}):
-            source = imports[module][name]
-            targets, resolution = defined.get(source, {}).get(name, []), "ast-import"
+            targets, resolution = [], "ast-import"
+            for source in imports[module][name]:
+                targets = defined.get(source, {}).get(name, [])
+                if targets:
+                    break
         else:
             targets = []
         if not targets:

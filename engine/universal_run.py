@@ -25,6 +25,8 @@ from pathlib import Path
 
 from engine import findings as sca_findings
 from engine import pipeline, report, sca_universal, universal, universal_report
+from engine import guidance
+from engine.application import Application
 from engine.checkov_adapter import CheckovAdapter
 from engine.cicd import CicdEngine
 from engine.container import ContainerEngine
@@ -36,6 +38,7 @@ from engine.iast import IastAdapter, IastEngine
 from engine.rasp import RaspAdapter, RaspEngine
 from engine.nuclei_adapter import NucleiAdapter
 from engine.sast import SastEngine
+from engine.sarif_adapter import SarifAdapter
 from engine.secrets_engine import SecretsEngine
 from engine.semgrep_adapter import SemgrepAdapter
 from engine.trivy_config_adapter import TrivyConfigAdapter
@@ -66,6 +69,7 @@ def build_registry() -> Registry:
     registry.register_adapter(TrivyConfigAdapter())
     registry.register_adapter(HadolintAdapter())
     registry.register_adapter(NucleiAdapter())
+    registry.register_adapter(SarifAdapter())
     registry.register_adapter(IastAdapter())
     registry.register_adapter(RaspAdapter())
     registry.register_engine(SastEngine())
@@ -282,10 +286,18 @@ def run(inputs, project_dir: Path, output_dir: Path, *, exposure: str = "unknown
         adapters_used.append("sca-pipeline")
 
     unassessed = [f for f in findings if "assessment" not in f]
+    # One shared analysis per run, built only when a finding needs it. Every finding reuses it.
+    application = None
+    attack_surface = []
+    if any(f["category"] == "SAST" for f in unassessed):
+        application = Application(project_dir.resolve())
+        attack_surface = [{"route": e["route"], "file": e["file"], "line": e["line"]}
+                          for e in application.entries()]
     assessed = universal.assess_all(unassessed, registry, {"project_dir": project_dir.resolve(),
-                                                           "exposure": exposure})
+                                                           "exposure": exposure,
+                                                           "application": application})
     assessed = [f for f in findings if "assessment" in f] + assessed
-    assessed = _merge_duplicates(assessed)
+    assessed = [guidance.enrich(f) for f in _merge_duplicates(assessed)]
     limitations = sorted({item for finding in assessed for item in finding["assessment"]["limitations"]})
     summary = {
         "inputs": inputs_summary,
@@ -300,6 +312,13 @@ def run(inputs, project_dir: Path, output_dir: Path, *, exposure: str = "unknown
     }
     gated = [f["id"] for f in assessed if f["assessment"]["verdict"] in GATE_VERDICTS[fail_on]]
     summary["gate"] = {"fail_on": fail_on, "failed": bool(gated), "failing_findings": gated}
+    summary["attack_paths"] = [
+        {"finding": f["id"], "rule": f["vulnerability"]["rule_id"], "verdict": f["assessment"]["verdict"],
+         "hops": f["assessment"]["attack_path"]}
+        for f in assessed if f["assessment"].get("attack_path")]
+    if application is not None:
+        summary["application"] = application.search_summary()
+        summary["attack_surface"] = attack_surface
     universal_report.write_outputs(output_dir, assessed, summary, TOOL_VERSION, diagnostics)
     return summary
 

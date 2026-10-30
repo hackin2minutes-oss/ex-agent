@@ -1,0 +1,6 @@
+{
+  "description": "A numeric conversion removes the injection channel. This is a mitigation on this call.",
+  "exposure": "internet",
+  "truth": 0,
+  "expected_verdict": "MITIGATED"
+}

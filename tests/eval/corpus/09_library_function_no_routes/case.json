@@ -1,0 +1,6 @@
+{
+  "description": "A library function in an application with no routes. Its callers are outside this project, so the attack surface is unknown.",
+  "exposure": "unknown",
+  "truth": null,
+  "expected_verdict": "UNKNOWN"
+}

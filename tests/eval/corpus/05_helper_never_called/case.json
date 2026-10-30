@@ -1,0 +1,6 @@
+{
+  "description": "A helper with a non-literal query that no route reaches, in a complete search.",
+  "exposure": "internet",
+  "truth": 0,
+  "expected_verdict": "NOT_REACHABLE"
+}

@@ -1,0 +1,6 @@
+{
+  "description": "The handler is reached through a dictionary and a dynamic call. The call graph cannot follow it, so reachability is unknown.",
+  "exposure": "internet",
+  "truth": 1,
+  "expected_verdict": "POTENTIALLY_EXPLOITABLE"
+}
