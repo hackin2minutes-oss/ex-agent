@@ -20,6 +20,7 @@ import urllib.request
 from pathlib import Path
 
 from engine.universal import ModelError
+from engine.universal_report import TOOL_NAME as OWN_TOOL
 
 API_BASE = "https://api.github.com"
 PER_PAGE = 100
@@ -71,7 +72,8 @@ def fetch_alerts(repo: str, ref: str, token: str, *, api: str = API_BASE, opener
             raise ModelError("code scanning alerts response is not a list")
         alerts.extend(page)
         url = next_url
-    return alerts
+    # The engine's own results are uploaded under its tool name. Reading them back would analyse its output again.
+    return [alert for alert in alerts if (alert.get("tool") or {}).get("name") != OWN_TOOL]
 
 
 def _level(rule: dict) -> str:

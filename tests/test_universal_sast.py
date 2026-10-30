@@ -67,9 +67,9 @@ class RealSemgrepFixtureTest(unittest.TestCase):
         self.assertEqual(assessment["conditions"]["attacker_influence"]["status"], "NOT_CONFIRMED")
         self.assertIn("literal", assessment["reason"])
 
-    def test_non_python_match_is_potentially_exploitable_with_low_confidence(self):
+    def test_non_python_match_is_unknown_with_low_confidence(self):
         assessment = self.by_location[("handler.js", 2)]
-        self.assertEqual(assessment["verdict"], POTENTIALLY_EXPLOITABLE)
+        self.assertEqual(assessment["verdict"], UNKNOWN)
         self.assertEqual(assessment["confidence"]["level"], "LOW")
         self.assertIn("no source-level analysis", assessment["reason"])
 
@@ -196,9 +196,9 @@ class UniversalRunEndToEndTest(unittest.TestCase):
 
         self.assertEqual(summary["findings"], 3)
         # This project has no route. The SQL call's argument is not a request value, so no attack path is known and
-        # the call is UNKNOWN, not potential. (Earlier, it was POTENTIALLY_EXPLOITABLE without any path.)
-        self.assertEqual(summary["verdicts"]["UNKNOWN"], 1)
-        self.assertEqual(summary["verdicts"]["POTENTIALLY_EXPLOITABLE"], 1)
+        # the call is UNKNOWN, not potential. A non-Python match has no source-level analysis, so it is UNKNOWN too.
+        self.assertEqual(summary["verdicts"]["UNKNOWN"], 2)
+        self.assertEqual(summary["verdicts"]["POTENTIALLY_EXPLOITABLE"], 0)
         self.assertEqual(summary["verdicts"]["NOT_EXPLOITABLE"], 1)
         self.assertEqual(summary["verdicts"]["CONFIRMED_EXPLOITABLE"], 0)
 
@@ -212,7 +212,7 @@ class UniversalRunEndToEndTest(unittest.TestCase):
                   + ":" + str(r["locations"][0]["physicalLocation"]["region"]["startLine"]):
                   r["level"] for r in sarif["runs"][0]["results"]}
         self.assertEqual(levels, {"app.py:6": "note", "app.py:12": "note",
-                                  "handler.js:2": "warning"})
+                                  "handler.js:2": "note"})
         messages = [r["message"]["text"] for r in sarif["runs"][0]["results"]]
         self.assertTrue(all("reported by: semgrep" in m for m in messages))
 

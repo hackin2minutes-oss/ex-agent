@@ -15,7 +15,7 @@ For each SAST finding with a location:
    otherwise, with the conditions that are unverified.
 5. Without the shared analysis (for example, a single file check), the call is POTENTIALLY_EXPLOITABLE, because
    the engine cannot tell whether the argument is attacker-controlled.
-6. Other languages get no source-level analysis: POTENTIALLY_EXPLOITABLE, LOW confidence.
+6. Other languages get no source-level analysis: UNKNOWN, LOW confidence.
 
 Static analysis is not a demonstrated exploit. A CONFIRMED_EXPLOITABLE here means the static conditions are
 satisfied on the traced path. No request was sent.
@@ -156,8 +156,9 @@ class SastEngine(Engine):
         base_limits = list(self.limits)
 
         if target.suffix != ".py":
+            # A pattern match with no analysis behind it says nothing about exploitability, so it is UNKNOWN.
             return make_assessment(
-                POTENTIALLY_EXPLOITABLE,
+                UNKNOWN,
                 reason="scanner pattern matched; no source-level analysis exists for this file type",
                 engine=self.name,
                 conditions={"attacker_influence": Condition(UNKNOWN_STATUS)},
