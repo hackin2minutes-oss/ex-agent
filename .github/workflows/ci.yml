@@ -35,12 +35,18 @@ jobs:
       - name: Build the CI rule directory (production rules plus synthetic test rule)
         run: sh scripts/build_ci_rules.sh
 
+      - name: Verify the pinned base image digest against the registry
+        run: sh scripts/verify_base_image.sh
+
       - name: Verify the image runs as non-root and can write the report
         run: |
           docker build -t exploitability-nonroot-check .
           uid=$(docker run --rm --entrypoint id exploitability-nonroot-check -u)
           echo "container uid: $uid"
           test "$uid" = "1001"
+          pyver=$(docker run --rm --entrypoint python3 exploitability-nonroot-check -c 'import sys; print("%d.%d" % sys.version_info[:2])')
+          echo "container python: $pyver"
+          test "$pyver" = "3.13"
           mkdir -p "$RUNNER_TEMP/write-check"
           docker run --rm -v "$RUNNER_TEMP/write-check:/out" --entrypoint sh \
             exploitability-nonroot-check -c 'echo ok > /out/probe'
