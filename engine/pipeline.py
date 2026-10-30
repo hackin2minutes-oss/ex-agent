@@ -16,6 +16,15 @@ ECOSYSTEMS_QUERIED = {"Maven", "npm", "PyPI"}
 TOOL_VERSION = "0.1.0"
 
 
+def _failure_text(exc: Exception) -> str:
+    """Describe a failed subprocess on one line, including the tail of its stderr."""
+    if isinstance(exc, subprocess.CalledProcessError):
+        stderr = (exc.stderr or "").strip().splitlines()[-8:]
+        tail = " | ".join(line.strip() for line in stderr if line.strip())
+        return f"exit {exc.returncode}: {tail}" if tail else f"exit {exc.returncode}"
+    return str(exc)
+
+
 def _cve_or_id(vuln_id: str, cve: str | None) -> str:
     return cve or vuln_id
 
@@ -111,7 +120,7 @@ def analyse_candidate(cand: dict, project_dir: Path, ctx: dict) -> dict:
                 taint_flows.extend(result["taint_flows"])
             mode = "codeql"
         except (subprocess.CalledProcessError, OSError) as exc:
-            notes.append(f"CodeQL failed, text fallback used: {exc}")
+            notes.append(f"CodeQL failed, text fallback used: {_failure_text(exc)}")
             hits, taint_flows, mode = [], [], "text_scan"
 
     if mode == "text_scan":
@@ -222,7 +231,7 @@ def run(project_dir: Path, deps_path: Path | None, rules_dir: Path, output_dir: 
         try:
             codeql.build_database(codeql_bin, project_dir, db_dir, build_command)
         except (subprocess.CalledProcessError, OSError) as exc:
-            notes.append(f"CodeQL database creation failed, text-scan fallback used: {exc}")
+            notes.append(f"CodeQL database creation failed, text-scan fallback used: {_failure_text(exc)}")
             db_dir = None
 
     ctx = {
