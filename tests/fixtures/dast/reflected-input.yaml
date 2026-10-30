@@ -1,0 +1,16 @@
+# Local Nuclei template for the DAST fixture only. It is not a production template.
+id: fixture-reflected-input
+info:
+  name: Fixture - unescaped input reflected in search results
+  author: fixture
+  severity: medium
+  description: The q parameter of /search is echoed without HTML escaping.
+http:
+  - method: GET
+    path:
+      - "{{BaseURL}}/search?q=%3Cb%3Eprobe%3C%2Fb%3E"
+    matchers:
+      - type: word
+        part: body
+        words:
+          - "Results for <b>probe</b>"
