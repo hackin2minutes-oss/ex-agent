@@ -83,3 +83,29 @@ def check_reports(paths: list[Path], project_dir: Path, *, allow_mismatch: bool 
         diagnostics.append(message + " (mismatch allowed; findings may not match the code)")
         kept.append(path)
     return diagnostics, kept
+
+
+def uncommitted_changes(project_dir: Path) -> list[str] | None:
+    """Paths with uncommitted changes, or None when the project is not a git checkout."""
+    try:
+        completed = subprocess.run(["git", "-C", str(project_dir), "status", "--porcelain"],
+                                   capture_output=True, text=True, timeout=GIT_TIMEOUT_SECONDS, check=False)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if completed.returncode != 0:
+        return None
+    return [line[3:] for line in completed.stdout.splitlines() if line.strip()]
+
+
+def check_clean(project_dir: Path, *, allow_dirty: bool = False) -> str:
+    """The analysed code must be the committed code the reports were generated from. Uncommitted changes can make
+    the findings' lines differ from the files, so a dirty tree is refused unless the caller allows it."""
+    changes = uncommitted_changes(project_dir)
+    if changes is None:
+        return "clean-tree check: the project is not a git checkout, so uncommitted changes cannot be ruled out"
+    if not changes:
+        return "clean-tree check: the working tree has no uncommitted changes"
+    message = f"clean-tree check: {len(changes)} uncommitted change(s), for example {changes[0]}"
+    if not allow_dirty:
+        raise ModelError(message + "; commit or stash them, or pass --allow-dirty")
+    return message + " (allowed; findings may not match the files)"
