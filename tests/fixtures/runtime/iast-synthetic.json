@@ -1,0 +1,182 @@
+{
+  "schema": "sawone.iast/1",
+  "agent": {
+    "name": "synthetic-iast-agent",
+    "version": "0.0.0-fixture",
+    "simulated": true
+  },
+  "application": {
+    "name": "runtime-fixture",
+    "environment": "test"
+  },
+  "observations": [
+    {
+      "id": "obs-safe",
+      "request_id": "req-201",
+      "endpoint": {
+        "method": "GET",
+        "route": "/safe"
+      },
+      "source": {
+        "kind": "http_query",
+        "name": "q"
+      },
+      "sink": {
+        "kind": "html_output",
+        "function": "make_response",
+        "file": "app.py",
+        "line": 6
+      },
+      "taint_path": [
+        {
+          "file": "app.py",
+          "line": 4,
+          "function": "render_safe"
+        },
+        {
+          "file": "app.py",
+          "line": 5,
+          "function": "render_safe"
+        },
+        {
+          "file": "app.py",
+          "line": 6,
+          "function": "render_safe"
+        }
+      ],
+      "sanitizers": [
+        {
+          "function": "html.escape",
+          "applied": true
+        }
+      ],
+      "executed": true,
+      "payload_observed": true,
+      "value_sha256": "ad6527f2b709d60d681d36a91ea5841a620f8e561d5e08af874d561749c6e8e0"
+    },
+    {
+      "id": "obs-raw",
+      "request_id": "req-202",
+      "endpoint": {
+        "method": "GET",
+        "route": "/raw"
+      },
+      "source": {
+        "kind": "http_query",
+        "name": "q"
+      },
+      "sink": {
+        "kind": "html_output",
+        "function": "make_response",
+        "file": "app.py",
+        "line": 10
+      },
+      "taint_path": [
+        {
+          "file": "app.py",
+          "line": 9,
+          "function": "render_raw"
+        },
+        {
+          "file": "app.py",
+          "line": 10,
+          "function": "render_raw"
+        }
+      ],
+      "sanitizers": [],
+      "executed": true,
+      "payload_observed": true,
+      "value_sha256": "ad6527f2b709d60d681d36a91ea5841a620f8e561d5e08af874d561749c6e8e0"
+    },
+    {
+      "id": "obs-claimed-unverified",
+      "request_id": "req-203",
+      "endpoint": {
+        "method": "GET",
+        "route": "/raw"
+      },
+      "source": {
+        "kind": "http_query",
+        "name": "q"
+      },
+      "sink": {
+        "kind": "html_output",
+        "function": "make_response",
+        "file": "app.py",
+        "line": 10
+      },
+      "taint_path": [
+        {
+          "file": "app.py",
+          "line": 9,
+          "function": "render_raw"
+        },
+        {
+          "file": "app.py",
+          "line": 10,
+          "function": "render_raw"
+        }
+      ],
+      "sanitizers": [
+        {
+          "function": "markupsafe.escape",
+          "applied": true
+        }
+      ],
+      "executed": true,
+      "payload_observed": true,
+      "value_sha256": "ad6527f2b709d60d681d36a91ea5841a620f8e561d5e08af874d561749c6e8e0"
+    },
+    {
+      "id": "obs-not-executed",
+      "request_id": "req-204",
+      "endpoint": {
+        "method": "GET",
+        "route": "/raw"
+      },
+      "source": {
+        "kind": "http_query",
+        "name": "q"
+      },
+      "sink": {
+        "kind": "html_output",
+        "function": "make_response",
+        "file": "app.py",
+        "line": 10
+      },
+      "taint_path": [],
+      "sanitizers": [],
+      "executed": false,
+      "payload_observed": false
+    },
+    {
+      "id": "obs-stale",
+      "request_id": "req-205",
+      "endpoint": {
+        "method": "GET",
+        "route": "/raw"
+      },
+      "source": {
+        "kind": "http_query",
+        "name": "q"
+      },
+      "sink": {
+        "kind": "html_output",
+        "function": "make_response",
+        "file": "app.py",
+        "line": 1
+      },
+      "taint_path": [
+        {
+          "file": "app.py",
+          "line": 10,
+          "function": "render_raw"
+        }
+      ],
+      "sanitizers": [],
+      "executed": true,
+      "payload_observed": true,
+      "value_sha256": "ad6527f2b709d60d681d36a91ea5841a620f8e561d5e08af874d561749c6e8e0"
+    }
+  ]
+}

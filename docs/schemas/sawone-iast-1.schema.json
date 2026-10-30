@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/hackin2minutes-oss/ex-agent/docs/schemas/sawone-iast-1.schema.json",
+  "title": "SAWONE IAST evidence, version 1",
+  "description": "Runtime observations from an IAST agent. One observation is one sink execution seen at runtime, with the request that caused it. `simulated` must be true for synthetic fixtures and false only for output of a real agent.",
+  "type": "object",
+  "required": ["schema", "agent", "observations"],
+  "additionalProperties": false,
+  "properties": {
+    "schema": {"const": "sawone.iast/1"},
+    "agent": {
+      "type": "object",
+      "required": ["name", "version", "simulated"],
+      "additionalProperties": false,
+      "properties": {
+        "name": {"type": "string", "minLength": 1},
+        "version": {"type": "string", "minLength": 1},
+        "simulated": {"type": "boolean"}
+      }
+    },
+    "application": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "name": {"type": "string"},
+        "environment": {"type": "string"}
+      }
+    },
+    "observations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "request_id", "sink", "source", "executed", "payload_observed"],
+        "additionalProperties": false,
+        "properties": {
+          "id": {"type": "string", "minLength": 1},
+          "request_id": {"type": "string", "minLength": 1},
+          "endpoint": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {"method": {"type": "string"}, "route": {"type": "string"}}
+          },
+          "source": {
+            "type": "object",
+            "required": ["kind", "name"],
+            "additionalProperties": false,
+            "properties": {
+              "kind": {"enum": ["http_query", "http_body", "http_header", "http_path", "cookie"]},
+              "name": {"type": "string"}
+            }
+          },
+          "sink": {
+            "type": "object",
+            "required": ["kind", "function", "file", "line"],
+            "additionalProperties": false,
+            "properties": {
+              "kind": {"enum": ["sql_execution", "html_output", "shell_command", "file_path", "outbound_request", "code_evaluation"]},
+              "function": {"type": "string", "minLength": 1},
+              "file": {"type": "string", "minLength": 1},
+              "line": {"type": "integer", "minimum": 1}
+            }
+          },
+          "taint_path": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["file", "line"],
+              "additionalProperties": false,
+              "properties": {
+                "file": {"type": "string"},
+                "line": {"type": "integer", "minimum": 1},
+                "function": {"type": "string"}
+              }
+            }
+          },
+          "sanitizers": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["function", "applied"],
+              "additionalProperties": false,
+              "properties": {
+                "function": {"type": "string"},
+                "applied": {"type": "boolean"}
+              }
+            }
+          },
+          "executed": {"type": "boolean"},
+          "payload_observed": {"type": "boolean"},
+          "value_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+        }
+      }
+    }
+  }
+}
