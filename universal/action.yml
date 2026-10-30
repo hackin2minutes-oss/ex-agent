@@ -23,6 +23,14 @@ inputs:
   code-scanning-ref:
     description: "Git ref of the alerts, for example refs/heads/master. Required with code-scanning-repo."
     default: ""
+  intel-dir:
+    description: >
+      A directory holding a verified intelligence snapshot: installed/ and state/ from the signed-update installer.
+      CISA KEV and EPSS signals are added to findings that name a CVE. Empty turns it off.
+    default: ""
+  intel-key:
+    description: "The pinned publisher public key (Ed25519 PEM) that signs the snapshot. Required with intel-dir."
+    default: ""
   project-dir:
     description: Project root that the reports' paths are relative to, relative to the workspace
     default: "."
@@ -82,3 +90,7 @@ runs:
     - ${{ inputs.code-scanning-repo }}
     - --code-scanning-ref
     - ${{ inputs.code-scanning-ref }}
+    - --intel-dir
+    - ${{ inputs.intel-dir }}
+    - --intel-key
+    - ${{ inputs.intel-key }}
