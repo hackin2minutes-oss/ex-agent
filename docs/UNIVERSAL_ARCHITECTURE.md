@@ -164,8 +164,15 @@ Taken by the project owner. Each one is implemented as stated.
 - Real input: `tests/fixtures/sast/semgrep-1.183.0.real.json` is `semgrep --json` output from
   Semgrep 1.183.0 on `tests/fixtures/sast/project`, with the local rules in
   `tests/fixtures/sast/rules.yml`. Those rules are fixture rules, not production rules.
-- Not done: Checkov, Zizmor, Gitleaks, Hadolint, Trivy and Grype adapters; the SCA port; a
-  gate in the universal path; a GitHub Action input for it.
+- IaC: the Checkov adapter (`engine/checkov_adapter.py`) keeps failed checks verbatim and
+  reports passed, skipped and parse-error counts as diagnostics. The IaC engine
+  (`engine/iac.py`) checks that Checkov's code block still matches the file. A stale scan is
+  UNKNOWN. A rule about network exposure whose verified block admits 0.0.0.0/0 or ::/0 is
+  POTENTIALLY_EXPLOITABLE with MEDIUM confidence. Every other configuration finding is UNKNOWN.
+  Real input: `tests/fixtures/iac/checkov-3.4.0.real.json` from `tests/fixtures/iac/project`.
+  Checkov 3.4.0 does not give columns, so IaC locations carry lines only.
+- Not done: Zizmor, Gitleaks, Hadolint, Trivy and Grype adapters; the SCA port; a gate in the
+  universal path; a GitHub Action input for it.
 
 ## 9. Not claimed
 

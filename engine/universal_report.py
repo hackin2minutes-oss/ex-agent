@@ -21,17 +21,11 @@ def _location(finding: dict) -> dict | None:
     loc = finding.get("location")
     if not loc:
         return None
-    return {
-        "physicalLocation": {
-            "artifactLocation": {"uri": loc["path"]},
-            "region": {
-                "startLine": loc["start_line"],
-                "startColumn": loc["start_col"],
-                "endLine": loc["end_line"],
-                "endColumn": loc["end_col"],
-            },
-        }
-    }
+    region = {"startLine": loc["start_line"], "endLine": loc["end_line"]}
+    if loc.get("start_col") is not None:  # some scanners report lines only
+        region["startColumn"] = loc["start_col"]
+        region["endColumn"] = loc["end_col"]
+    return {"physicalLocation": {"artifactLocation": {"uri": loc["path"]}, "region": region}}
 
 
 def to_sarif(assessed: list[dict], tool_version: str, notifications: list[str]) -> dict:

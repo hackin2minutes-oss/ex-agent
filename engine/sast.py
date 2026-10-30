@@ -16,11 +16,10 @@ It never returns MITIGATED, because no mitigation is verified.
 """
 
 import ast
-from pathlib import Path
 
 from engine.universal import (
-    NOT_CONFIRMED, POTENTIALLY_EXPLOITABLE, NOT_EXPLOITABLE, UNKNOWN_STATUS, Condition, Engine,
-    make_assessment, unknown_assessment,
+    NOT_CONFIRMED, NOT_EXPLOITABLE, POTENTIALLY_EXPLOITABLE, UNKNOWN_STATUS, Condition, Engine,
+    make_assessment, resolve_project_file, unknown_assessment,
 )
 
 NAME = "sast-call-site"
@@ -53,10 +52,6 @@ def _call_spanning(tree: ast.AST, location: dict) -> ast.Call | None:
     return None
 
 
-def _inside(root: Path, target: Path) -> bool:
-    return target.is_relative_to(root)
-
-
 class SastEngine(Engine):
     name = NAME
     categories = ("SAST",)
@@ -74,16 +69,9 @@ class SastEngine(Engine):
         if not location:
             return unknown_assessment("the finding has no source location", engine=self.name)
 
-        root = Path(context["project_dir"]).resolve()
-        target = (root / location["path"]).resolve()
-        if not _inside(root, target):
-            return unknown_assessment(
-                "the reported path leaves the project directory and was not read",
-                engine=self.name)
-        if not target.is_file():
-            return unknown_assessment(
-                f"source file {location['path']} was not found in the project",
-                engine=self.name)
+        target, problem = resolve_project_file(context["project_dir"], location["path"])
+        if target is None:
+            return unknown_assessment(problem, engine=self.name)
 
         coverage_common = {
             "analysed": [f"{location['path']}:{location['start_line']} location resolved"],
