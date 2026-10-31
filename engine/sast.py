@@ -117,9 +117,12 @@ def _call_spanning(tree: ast.AST, location: dict) -> ast.Call | None:
                 and node.end_lineno == location["end_line"]
                 and node.end_col_offset + 1 == location["end_col"]):
             return node
-    if location.get("start_col") is None or location.get("end_col") is None:
+    if location.get("start_col") is None:
         return None
-    flagged = ((location["start_line"], location["start_col"]), (location["end_line"], location["end_col"]))
+    # Code Scanning often gives only a start point. Then the flagged span is that point.
+    end_line = location.get("end_line") or location["start_line"]
+    end_col = location.get("end_col") or location["start_col"]
+    flagged = ((location["start_line"], location["start_col"]), (end_line, end_col))
     containing = []
     for node in calls:
         for argument in list(node.args) + [keyword.value for keyword in node.keywords]:

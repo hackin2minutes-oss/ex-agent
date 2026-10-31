@@ -5,6 +5,7 @@ Semgrep 1.183.0 run on `tests/fixtures/sast/project` with the local rules in
 `tests/fixtures/sast/rules.yml`. Those rules are for the fixture only.
 """
 
+import ast
 import copy
 import json
 import shutil
@@ -178,6 +179,13 @@ class SastEngineCaseTest(unittest.TestCase):
         assessment = assess_document(doc, self.project)[0]["assessment"]
         self.assertNotIn("no call expression", assessment["reason"])
         self.assertNotEqual(assessment["verdict"], UNKNOWN)
+
+    def test_start_point_without_an_end_still_matches_the_argument(self):
+        # Code Scanning alerts often give a start column and no end column.
+        tree = ast.parse("subprocess.call(cmd, shell=True)\n")
+        node = sast._call_spanning(tree, {"start_line": 1, "start_col": 28, "end_line": None, "end_col": None})
+        self.assertIsNotNone(node)
+        self.assertEqual(node.func.attr, "call")
 
     def test_missing_file_is_unknown(self):
         doc = self.document_for("present.py", "run(x)\n", 1)
