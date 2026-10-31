@@ -1,5 +1,9 @@
 FROM python:3.13-slim@sha256:2d44738ebf4ce5f63b9d9ea871e9c7cfdc0426f7b0c97cac915fd88ded1d86bb
 
+# git is needed on every run: the commit check and the clean-tree check read the project's repository.
+RUN apt-get update && apt-get install -y --no-install-recommends git \
+    && rm -rf /var/lib/apt/lists/*
+
 # Optional CodeQL CLI. Leave CODEQL_VERSION empty to build without it; the engine
 # then reports call sites through its text-scan fallback. Set it to a release tag
 # you have tested (not verified in this repository's build environment).
