@@ -107,16 +107,31 @@ def _classify(node: ast.AST, names: dict, depth: int = 0) -> str:
 
 
 def _call_spanning(tree: ast.AST, location: dict) -> ast.Call | None:
-    """The call whose start and end match the scanner's location exactly, or None."""
-    for node in ast.walk(tree):
-        if not isinstance(node, ast.Call):
-            continue
+    """The call the scanner flagged. A scanner may flag the whole call, or one of its arguments: Semgrep flags the
+    value in `shell=True`, not the call. An exact span match wins. Otherwise the site is the innermost call with an
+    argument or keyword value that contains the flagged span. A span on the callee, such as `run(`, matches no call."""
+    calls = [node for node in ast.walk(tree) if isinstance(node, ast.Call)]
+    for node in calls:
         if (node.lineno == location["start_line"]
                 and node.col_offset + 1 == location["start_col"]
                 and node.end_lineno == location["end_line"]
                 and node.end_col_offset + 1 == location["end_col"]):
             return node
-    return None
+    if location.get("start_col") is None or location.get("end_col") is None:
+        return None
+    flagged = ((location["start_line"], location["start_col"]), (location["end_line"], location["end_col"]))
+    containing = []
+    for node in calls:
+        for argument in list(node.args) + [keyword.value for keyword in node.keywords]:
+            start = (argument.lineno, argument.col_offset + 1)
+            end = (argument.end_lineno, argument.end_col_offset + 1)
+            if start <= flagged[0] and flagged[1] <= end:
+                containing.append(node)
+                break
+    if not containing:
+        return None
+    # The innermost call is the one whose own span starts last.
+    return max(containing, key=lambda node: (node.lineno, node.col_offset))
 
 
 def _with_path(assessment, app, reach):
