@@ -5,7 +5,7 @@ FROM python:3.13-slim@sha256:2d44738ebf4ce5f63b9d9ea871e9c7cfdc0426f7b0c97cac915
 # you have tested (not verified in this repository's build environment).
 ARG CODEQL_VERSION=""
 RUN if [ -n "$CODEQL_VERSION" ]; then \
-      apt-get update && apt-get install -y --no-install-recommends unzip curl ca-certificates \
+      apt-get update && apt-get install -y --no-install-recommends git unzip curl ca-certificates \
       && curl -sSLf -o /tmp/codeql.zip \
          "https://github.com/github/codeql-cli-binaries/releases/download/v${CODEQL_VERSION}/codeql-linux64.zip" \
       && unzip -q /tmp/codeql.zip -d /opt \
