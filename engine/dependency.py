@@ -71,3 +71,28 @@ def version_status(record: dict) -> dict:
             "reason": (f"installed {installed} is below the fixed version {same_line[0]} on its release line; "
                        "the version the vulnerability was introduced in is not established"),
             "fixed": same_line[0]}
+
+
+NOT_ESTABLISHED = "NOT_ESTABLISHED"
+
+
+def dimensions(*, presence: str, version: dict | None, usage: dict | None, verdict: str) -> dict:
+    """The analysis dimensions of one dependency finding, kept apart so each can be read on its own.
+
+    presence: where the package was found ('image', 'project' or 'unspecified').
+    version: the version status from version_status(), or None when it was not checked here.
+    usage: the import result from engine/dependency_usage.py, or None when no import analysis ran.
+    verdict: the finding's verdict. The dimensions above do not decide it.
+    """
+    return {
+        "presence": presence,
+        "version_status": version["status"] if version else NOT_ESTABLISHED,
+        "version_reason": version["reason"] if version else "the version status was not checked for this finding",
+        "application_usage": usage["status"] if usage else NOT_ESTABLISHED,
+        "application_usage_reason": (usage["reason"] if usage
+                                     else "the import analysis did not run for this finding"),
+        "application_usage_locations": list(usage["locations"]) if usage else [],
+        "vulnerable_functionality": NOT_ESTABLISHED,
+        "vulnerable_functionality_reason": "no advisory in this engine names the vulnerable functions",
+        "verdict": verdict,
+    }

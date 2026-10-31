@@ -189,5 +189,45 @@ class RoutingAndVerdictTest(unittest.TestCase):
         self.assertNotEqual(ours[0]["assessment"]["verdict"], NOT_EXPLOITABLE)
 
 
+class UsageTest(unittest.TestCase):
+    JS = Path(__file__).parent / "fixtures" / "js-analysis-app"
+
+    def test_package_imported_by_python_source_is_imported_with_its_location(self):
+        from engine import dependency_usage
+        result = dependency_usage.find(PROJECT, "PyPI", "flask")
+        self.assertEqual(result["status"], dependency_usage.IMPORTED)
+        self.assertEqual(result["locations"], ["app/views.py:2"])
+
+    def test_no_matching_import_is_not_evidence_of_non_use(self):
+        # PyYAML is imported as yaml. No import named pyyaml is not proof the package is unused.
+        from engine import dependency_usage
+        result = dependency_usage.find(PROJECT, "PyPI", "pyyaml")
+        self.assertEqual(result["status"], dependency_usage.NOT_FOUND_IN_SOURCE)
+        self.assertIn("not evidence", result["reason"])
+
+    def test_npm_require_and_import_are_read_from_the_syntax_tree(self):
+        from engine import dependency_usage
+        result = dependency_usage.find(self.JS, "npm", "express")
+        self.assertEqual(result["status"], dependency_usage.IMPORTED)
+
+    def test_ecosystem_without_import_analysis_is_not_scanned(self):
+        from engine import dependency_usage
+        self.assertEqual(dependency_usage.find(PROJECT, "Go", "x")["status"], dependency_usage.NOT_SCANNED)
+
+    def test_vulnerable_package_with_unknown_use_stays_out_of_not_exploitable(self):
+        document = {"runs": [{"tool": {"driver": {"name": "osv-scanner"}}, "results": [_result(
+            "Package 'pyyaml@5.3.1' is vulnerable to 'PYSEC-2021-0001'.", "requirements.txt", "PYSEC-2021-0001")]}]}
+        path = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, path, ignore_errors=True)
+        (path / "report.sarif").write_text(json.dumps(document), encoding="utf-8")
+        universal_run.run([path / "report.sarif"], PROJECT, path / "out", exposure="internet", offline=True)
+        findings = json.loads((path / "out" / "universal-findings.json").read_text(encoding="utf-8"))["findings"]
+        ours = [f for f in findings if f["vulnerability"]["rule_id"] == "PYSEC-2021-0001"]
+        dims = ours[0]["assessment"]["dimensions"]
+        self.assertEqual(dims["application_usage"], "NOT_FOUND_IN_SOURCE")
+        self.assertEqual(dims["vulnerable_functionality"], "NOT_ESTABLISHED")
+        self.assertNotEqual(ours[0]["assessment"]["verdict"], NOT_EXPLOITABLE)
+
+
 if __name__ == "__main__":
     unittest.main()

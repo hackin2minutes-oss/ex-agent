@@ -29,6 +29,7 @@ from engine import code_scanning, deployment_context, evidence_graph, intel_snap
 from engine import findings as sca_findings
 from engine import sarif_dependency
 from engine import dependency
+from engine import dependency_usage
 from engine import pipeline, report, sca_universal, universal, universal_report
 from engine import guidance
 from engine.application import Application
@@ -147,6 +148,8 @@ def _image_inventory_finding(item: dict, document: dict, exposure: str) -> dict:
             exposure=exposure,
         ).to_dict()
         finding["assessment"]["version_status"] = status["status"]
+        finding["assessment"]["dimensions"] = dependency.dimensions(
+            presence="image", version=status, usage=None, verdict=universal.NOT_AFFECTED)
         return finding
     finding["assessment"] = universal.make_assessment(
         universal.UNKNOWN,
@@ -161,6 +164,8 @@ def _image_inventory_finding(item: dict, document: dict, exposure: str) -> dict:
         exposure=exposure,
     ).to_dict()
     finding["assessment"]["version_status"] = status["status"]
+    finding["assessment"]["dimensions"] = dependency.dimensions(
+        presence="image", version=status, usage=None, verdict=universal.UNKNOWN)
     return finding
 
 
@@ -354,6 +359,14 @@ def run(inputs, project_dir: Path, output_dir: Path, *, exposure: str = "unknown
     if sca_inputs:
         sca_results = _run_sca(sca_inputs, project_dir.resolve(), output_dir, exposure=exposure,
                                offline=offline, rules_dir=rules_dir, diagnostics=diagnostics)
+        for finding in sca_results:
+            # Use of the package is a separate dimension. It is checked in the project's source, and it does not
+            # change the verdict the dependency pipeline gave.
+            dependency_info = finding["original"].get("dependency") or {}
+            usage = dependency_usage.find(project_dir.resolve(), dependency_info.get("ecosystem", ""),
+                                          dependency_info.get("name", ""))
+            finding["assessment"]["dimensions"] = dependency.dimensions(
+                presence="project", version=None, usage=usage, verdict=finding["assessment"]["verdict"])
         findings.extend(sca_results)
         adapters_used.append("sca-pipeline")
 
