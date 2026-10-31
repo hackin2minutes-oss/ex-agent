@@ -180,10 +180,19 @@ def write_all(output_dir: Path, findings: list[dict], summary: dict, tool_versio
     (output_dir / "report.md").write_text(summary_markdown(summary, findings), encoding="utf-8")
 
 
+# GitHub rejects a step summary over 1024 KiB and fails the step. Stay under it with a margin, and point to the full report.
+JOB_SUMMARY_LIMIT_BYTES = 1_000_000
+JOB_SUMMARY_NOTICE = "\n\n> The summary was shortened to fit GitHub's step summary limit. The full report is in `report.md`.\n"
+
+
 def append_job_summary(markdown: str, env=os.environ) -> bool:
     target = env.get("GITHUB_STEP_SUMMARY")
     if not target:
         return False
+    data = markdown.encode("utf-8")
+    if len(data) > JOB_SUMMARY_LIMIT_BYTES:
+        keep = JOB_SUMMARY_LIMIT_BYTES - len(JOB_SUMMARY_NOTICE.encode("utf-8"))
+        markdown = data[:keep].decode("utf-8", errors="ignore") + JOB_SUMMARY_NOTICE
     with open(target, "a", encoding="utf-8") as handle:
         handle.write(markdown)
     return True

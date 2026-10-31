@@ -270,6 +270,15 @@ class UniversalRunEndToEndTest(unittest.TestCase):
         report.append_job_summary(markdown, env={"GITHUB_STEP_SUMMARY": str(summary_file)})
         self.assertIn("Universal exploitability assessment", summary_file.read_text(encoding="utf-8"))
 
+    def test_oversized_step_summary_is_shortened_below_the_github_limit(self):
+        from engine import report
+
+        summary_file = self.tmp / "step.md"
+        report.append_job_summary("x" * 2_000_000, env={"GITHUB_STEP_SUMMARY": str(summary_file)})
+        written = summary_file.read_bytes()
+        self.assertLessEqual(len(written), 1024 * 1024)
+        self.assertIn(b"shortened to fit", written)
+
     def test_internet_declaration_does_not_create_a_confirmed_sast_verdict(self):
         summary = universal_run.run(REAL, PROJECT, self.out, exposure="internet")
         self.assertEqual(summary["verdicts"]["CONFIRMED_EXPLOITABLE"], 0)
