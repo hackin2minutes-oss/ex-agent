@@ -187,6 +187,13 @@ class SastEngineCaseTest(unittest.TestCase):
         self.assertIsNotNone(node)
         self.assertEqual(node.func.attr, "call")
 
+    def test_start_point_at_the_start_of_a_whole_call_matches_that_call(self):
+        # Semgrep flags exec(...) from its first character, which is the callee.
+        tree = ast.parse("def f(code):\n    exec(code)\n")
+        node = sast._call_spanning(tree, {"start_line": 2, "start_col": 5, "end_line": None, "end_col": None})
+        self.assertIsNotNone(node)
+        self.assertEqual(node.func.id, "exec")
+
     def test_missing_file_is_unknown(self):
         doc = self.document_for("present.py", "run(x)\n", 1)
         (self.project / "present.py").unlink()

@@ -119,12 +119,17 @@ def _call_spanning(tree: ast.AST, location: dict) -> ast.Call | None:
             return node
     if location.get("start_col") is None:
         return None
-    # Code Scanning often gives only a start point. Then the flagged span is that point.
+    # Code Scanning often gives only a start point. Then the flagged span is that point, and it is either inside an
+    # argument, or it is the start of the whole call (as for exec(...)).
+    point_only = location.get("end_line") is None and location.get("end_col") is None
     end_line = location.get("end_line") or location["start_line"]
     end_col = location.get("end_col") or location["start_col"]
     flagged = ((location["start_line"], location["start_col"]), (end_line, end_col))
     containing = []
     for node in calls:
+        if point_only and (node.lineno, node.col_offset + 1) == flagged[0]:
+            containing.append(node)
+            continue
         for argument in list(node.args) + [keyword.value for keyword in node.keywords]:
             start = (argument.lineno, argument.col_offset + 1)
             end = (argument.end_lineno, argument.end_col_offset + 1)
