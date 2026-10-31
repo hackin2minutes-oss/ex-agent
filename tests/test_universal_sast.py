@@ -157,7 +157,9 @@ class SastEngineCaseTest(unittest.TestCase):
         }
 
     def test_literal_concatenation_is_constant_but_an_interpolated_field_is_not(self):
+        # A literal-only call is NOT_EXPLOITABLE only for an injection-type rule, so the rule names its CWE.
         doc = self.document_for("d.py", 'run("SELECT " + "1")\n', 1)
+        doc["results"][0].setdefault("extra", {}).setdefault("metadata", {})["cwe"] = ["CWE-89: SQL Injection"]
         self.assertEqual(verdict_by_location(assess_document(doc, self.project))[("d.py", 1)]["verdict"],
                          NOT_EXPLOITABLE)
         # An f-string field is a FormattedValue, even when its content is a literal. Stay potential.

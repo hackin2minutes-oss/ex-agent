@@ -24,6 +24,7 @@ satisfied on the traced path. No request was sent.
 import ast
 
 from engine import deployment_context, preconditions, weakness
+from engine.guidance import INJECTION_CLASSES
 from engine.languages import analyzer_for
 from engine.universal import (
     CONFIRMED, CONFIRMED_EXPLOITABLE, MITIGATED, NOT_CONFIRMED, NOT_EXPLOITABLE, NOT_REACHABLE, UNKNOWN,
@@ -104,6 +105,19 @@ def _classify(node: ast.AST, names: dict, depth: int = 0) -> str:
     if not children:
         return UNKNOWN_ARG
     return _combine({_classify(c, names, depth) for c in children})
+
+
+def _literal_is_safe(finding: dict) -> bool:
+    """A literal-only call is NOT_EXPLOITABLE only for an injection-type weakness. For any other rule the flagged value
+    is itself the problem (debug=True, a bind to all interfaces), so all-literal arguments do not clear it."""
+    return weakness.route(finding)["weakness_class"] in INJECTION_CLASSES
+
+
+def _literal_configuration(location: dict, *, engine: str):
+    return unknown_assessment(
+        f"{location['path']}:{location['start_line']}: every argument is a literal, and the rule concerns that "
+        "value rather than attacker input, which the engine does not model",
+        engine=engine)
 
 
 def _call_spanning(tree: ast.AST, location: dict) -> ast.Call | None:
@@ -235,6 +249,8 @@ class SastEngine(Engine):
 
         span = f"{location['path']}:{location['start_line']}"
         if all(_is_constant(arg) for arg in arguments):
+            if not _literal_is_safe(finding):
+                return _literal_configuration(location, engine=self.name)
             return make_assessment(
                 NOT_EXPLOITABLE,
                 reason=("every argument of the flagged call is a literal constant, so no "
@@ -299,6 +315,8 @@ class SastEngine(Engine):
                 exposure=finding["exploitability_context"]["exposure"],
             )
         if text_class == CONSTANT and not bound:
+            if not _literal_is_safe(finding):
+                return _literal_configuration(location, engine=self.name)
             return make_assessment(
                 NOT_EXPLOITABLE,
                 reason="every argument of the flagged call is a literal constant, so no attacker data reaches this call site",
