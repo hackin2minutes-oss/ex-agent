@@ -24,6 +24,7 @@ satisfied on the traced path. No request was sent.
 import ast
 
 from engine import deployment_context, preconditions, weakness
+from engine.guidance import INJECTION_CLASSES
 from engine.languages import analyzer_for
 from engine.universal import (
     CONFIRMED, CONFIRMED_EXPLOITABLE, MITIGATED, NOT_CONFIRMED, NOT_EXPLOITABLE, NOT_REACHABLE, UNKNOWN,
@@ -106,17 +107,53 @@ def _classify(node: ast.AST, names: dict, depth: int = 0) -> str:
     return _combine({_classify(c, names, depth) for c in children})
 
 
+def _literal_is_safe(finding: dict) -> bool:
+    """A literal-only call is NOT_EXPLOITABLE only for an injection-type weakness. For any other rule the flagged value
+    is itself the problem (debug=True, a bind to all interfaces), so all-literal arguments do not clear it."""
+    return weakness.route(finding)["weakness_class"] in INJECTION_CLASSES
+
+
+def _literal_configuration(location: dict, *, engine: str):
+    return unknown_assessment(
+        f"{location['path']}:{location['start_line']}: every argument is a literal, and the rule concerns that "
+        "value rather than attacker input, which the engine does not model",
+        engine=engine)
+
+
 def _call_spanning(tree: ast.AST, location: dict) -> ast.Call | None:
-    """The call whose start and end match the scanner's location exactly, or None."""
-    for node in ast.walk(tree):
-        if not isinstance(node, ast.Call):
-            continue
+    """The call the scanner flagged. A scanner may flag the whole call, or one of its arguments: Semgrep flags the
+    value in `shell=True`, not the call. An exact span match wins. Otherwise the site is the innermost call with an
+    argument or keyword value that contains the flagged span. A span on the callee, such as `run(`, matches no call."""
+    calls = [node for node in ast.walk(tree) if isinstance(node, ast.Call)]
+    for node in calls:
         if (node.lineno == location["start_line"]
                 and node.col_offset + 1 == location["start_col"]
                 and node.end_lineno == location["end_line"]
                 and node.end_col_offset + 1 == location["end_col"]):
             return node
-    return None
+    if location.get("start_col") is None:
+        return None
+    # Code Scanning often gives only a start point. Then the flagged span is that point, and it is either inside an
+    # argument, or it is the start of the whole call (as for exec(...)).
+    point_only = location.get("end_col") is None
+    end_line = location.get("end_line") or location["start_line"]
+    end_col = location.get("end_col") or location["start_col"]
+    flagged = ((location["start_line"], location["start_col"]), (end_line, end_col))
+    containing = []
+    for node in calls:
+        if point_only and (node.lineno, node.col_offset + 1) == flagged[0]:
+            containing.append(node)
+            continue
+        for argument in list(node.args) + [keyword.value for keyword in node.keywords]:
+            start = (argument.lineno, argument.col_offset + 1)
+            end = (argument.end_lineno, argument.end_col_offset + 1)
+            if start <= flagged[0] and flagged[1] <= end:
+                containing.append(node)
+                break
+    if not containing:
+        return None
+    # The innermost call is the one whose own span starts last.
+    return max(containing, key=lambda node: (node.lineno, node.col_offset))
 
 
 def _with_path(assessment, app, reach):
@@ -212,6 +249,8 @@ class SastEngine(Engine):
 
         span = f"{location['path']}:{location['start_line']}"
         if all(_is_constant(arg) for arg in arguments):
+            if not _literal_is_safe(finding):
+                return _literal_configuration(location, engine=self.name)
             return make_assessment(
                 NOT_EXPLOITABLE,
                 reason=("every argument of the flagged call is a literal constant, so no "
@@ -276,6 +315,8 @@ class SastEngine(Engine):
                 exposure=finding["exploitability_context"]["exposure"],
             )
         if text_class == CONSTANT and not bound:
+            if not _literal_is_safe(finding):
+                return _literal_configuration(location, engine=self.name)
             return make_assessment(
                 NOT_EXPLOITABLE,
                 reason="every argument of the flagged call is a literal constant, so no attacker data reaches this call site",

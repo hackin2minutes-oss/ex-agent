@@ -5,6 +5,7 @@ Semgrep 1.183.0 run on `tests/fixtures/sast/project` with the local rules in
 `tests/fixtures/sast/rules.yml`. Those rules are for the fixture only.
 """
 
+import ast
 import copy
 import json
 import shutil
@@ -156,7 +157,9 @@ class SastEngineCaseTest(unittest.TestCase):
         }
 
     def test_literal_concatenation_is_constant_but_an_interpolated_field_is_not(self):
+        # A literal-only call is NOT_EXPLOITABLE only for an injection-type rule, so the rule names its CWE.
         doc = self.document_for("d.py", 'run("SELECT " + "1")\n', 1)
+        doc["results"][0].setdefault("extra", {}).setdefault("metadata", {})["cwe"] = ["CWE-89: SQL Injection"]
         self.assertEqual(verdict_by_location(assess_document(doc, self.project))[("d.py", 1)]["verdict"],
                          NOT_EXPLOITABLE)
         # An f-string field is a FormattedValue, even when its content is a literal. Stay potential.
@@ -170,6 +173,28 @@ class SastEngineCaseTest(unittest.TestCase):
         assessment = assess_document(doc, self.project)[0]["assessment"]
         self.assertEqual(assessment["verdict"], UNKNOWN)
         self.assertIn("no call expression", assessment["reason"])
+
+    def test_flagged_argument_matches_the_call_that_contains_it(self):
+        # Semgrep flags the value True in shell=True, not the whole call.
+        source = "import subprocess\nsubprocess.call(cmd, shell=True)\n"
+        doc = self.document_for("e.py", source, 2, 28, 2, 32)
+        assessment = assess_document(doc, self.project)[0]["assessment"]
+        self.assertNotIn("no call expression", assessment["reason"])
+        self.assertNotEqual(assessment["verdict"], UNKNOWN)
+
+    def test_start_point_without_an_end_still_matches_the_argument(self):
+        # Code Scanning alerts often give a start column and no end column.
+        tree = ast.parse("subprocess.call(cmd, shell=True)\n")
+        node = sast._call_spanning(tree, {"start_line": 1, "start_col": 28, "end_line": None, "end_col": None})
+        self.assertIsNotNone(node)
+        self.assertEqual(node.func.attr, "call")
+
+    def test_start_point_at_the_start_of_a_whole_call_matches_that_call(self):
+        # Semgrep flags exec(...) from its first character, which is the callee.
+        tree = ast.parse("def f(code):\n    exec(code)\n")
+        node = sast._call_spanning(tree, {"start_line": 2, "start_col": 5, "end_line": None, "end_col": None})
+        self.assertIsNotNone(node)
+        self.assertEqual(node.func.id, "exec")
 
     def test_missing_file_is_unknown(self):
         doc = self.document_for("present.py", "run(x)\n", 1)

@@ -81,9 +81,9 @@ def enrich(finding: dict) -> dict:
         # The engine could not decide this alert. The fix is still the right first move, but it is not a verdict, so
         # it is labelled as generic.
         remediation = (f"Generic fix, not a verdict: {fix} The engine did not establish exploitability for this "
-                       "alert. Provide the missing evidence under missing_information to decide.")
+                       "alert. Provide the missing evidence to decide.")
     else:
-        remediation = "Provide the missing evidence listed under missing_information, then re-assess."
+        remediation = "Provide the missing evidence, then re-assess."
     # The question that most decides the verdict comes first. For a source finding, that is whether attacker data
     # reaches the call, not whether the call exists.
     priority = ["attacker_influence", "reachable", "preconditions", "runtime_observed", "blocked",

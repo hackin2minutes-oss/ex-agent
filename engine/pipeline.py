@@ -17,7 +17,7 @@ SHIPPED_SCOPE_EXCLUDED = {"test", "dev"}
 ECOSYSTEMS_QUERIED = {"Maven", "npm", "PyPI", "Go", "crates.io", "Packagist", "RubyGems", "NuGet"}
 NVD_LOOKUP_LIMIT = 25  # NVD allows few unauthenticated requests; a run enriches at most this many CVEs
 GHSA_QUERY_LIMIT = 300  # one request per dependency; stops a very large inventory from exhausting the rate limit
-TOOL_VERSION = "0.1.0"
+TOOL_VERSION = "0.8.0"
 
 
 def _failure_text(exc: Exception) -> str:

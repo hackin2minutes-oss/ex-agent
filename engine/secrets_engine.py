@@ -73,6 +73,11 @@ class SecretsEngine(Engine):
         if row < len(lines) and len(lines[row]) > MAX_LINE:
             return unknown_assessment(f"{span} is longer than {MAX_LINE} characters and was not searched",
                                       engine=self.name)
+        if "match_sha256" not in original or "match_length" not in original:
+            # Only the Gitleaks adapter records the digest. Without it the value cannot be located, so say so.
+            return unknown_assessment(
+                f"{span}: the report did not record the credential's digest, so the value could not be located",
+                engine=self.name)
         if row >= len(lines) or not _window_matches(lines[row], original["match_length"],
                                                     original["match_sha256"]):
             return unknown_assessment(

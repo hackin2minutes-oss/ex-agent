@@ -139,6 +139,15 @@ class SecretsEdgeCaseTest(unittest.TestCase):
         self.assertEqual(assessed["assessment"]["verdict"], UNKNOWN)
         self.assertIn("not searched", assessed["assessment"]["reason"])
 
+    def test_secret_without_a_recorded_digest_is_unknown_not_a_crash(self):
+        # Only the Gitleaks adapter records the digest. A secret from another source has none to check against.
+        from engine.secrets_engine import SecretsEngine
+        finding = {"location": {"path": "config.py", "start_line": 1, "end_line": 1}, "original": {},
+                   "exploitability_context": {"exposure": "unknown"}}
+        assessment = SecretsEngine().assess(finding, {"project_dir": self.project}).to_dict()
+        self.assertEqual(assessment["verdict"], UNKNOWN)
+        self.assertIn("digest", assessment["reason"])
+
     def test_path_leaving_the_project_is_refused(self):
         (assessed,) = assess_document(self.record(File="../outside.py"), self.project)
         self.assertEqual(assessed["assessment"]["verdict"], UNKNOWN)
