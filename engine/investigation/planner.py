@@ -12,7 +12,33 @@ OfflinePlanner is deterministic and needs no model. It gathers source around the
 it is about. It cannot judge exploitability, so it concludes UNKNOWN and says what it could not establish.
 """
 
+import os
+
 from engine.universal import UNKNOWN
+
+PLANNER_ENV = "SAWONE_PLANNER"       # "offline" (default) or "anthropic"
+API_KEY_ENV = "ANTHROPIC_API_KEY"    # read from the environment only; never stored in a result or log
+MODEL_ENV = "SAWONE_MODEL"           # optional model id for the anthropic planner
+
+
+class PlannerError(RuntimeError):
+    """A planner could not produce a step. The loop ends the investigation as ANALYSIS_INCOMPLETE with this message."""
+
+
+def select_planner(name: str | None = None, env=os.environ, *, transport=None):
+    """The planner named by `name`, else by SAWONE_PLANNER, else the offline planner.
+
+    An unknown name, or a named planner whose key is missing, is an error. It is never a silent fallback to offline,
+    because a silent fallback would look like a model verdict.
+    """
+    chosen = (name or env.get(PLANNER_ENV) or "offline").strip().lower()
+    if chosen == "offline":
+        return OfflinePlanner()
+    if chosen == "anthropic":
+        from engine.investigation.anthropic_planner import DEFAULT_MODEL, AnthropicPlanner
+        return AnthropicPlanner(env.get(API_KEY_ENV, ""), model=env.get(MODEL_ENV) or DEFAULT_MODEL,
+                                transport=transport)
+    raise PlannerError(f"unknown planner {chosen!r}; use 'offline' or 'anthropic'")
 
 
 class OfflinePlanner:

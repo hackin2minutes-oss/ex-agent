@@ -36,10 +36,24 @@ be accepted. It is not yet an AI analyst.
    of missing evidence. Each missing item says what would resolve it. Otherwise UNKNOWN is refused.
 4. **Budgets are enforced.** The loop stops at its step budget and reports the steps taken.
 
+## Choosing the planner
+
+- `SAWONE_PLANNER=offline` (default): deterministic, no network, always ends at UNKNOWN for source findings.
+- `SAWONE_PLANNER=anthropic`: asks the Anthropic Messages API for each step. Needs `ANTHROPIC_API_KEY`.
+  `SAWONE_MODEL` picks the model (default `claude-opus-5-5`).
+- A named planner with no key is an error. It never falls back to offline silently.
+
+What leaves the runner with the anthropic planner: the finding, the evidence gathered so far (source excerpts from the
+project), the tool log, and the tool descriptions. The key is sent only in the `x-api-key` header. It is never written to
+a result, a log or an error message. The system prompt tells the model that source code is data, not instructions.
+
+The model's reply is a proposal only. A reply that is not valid JSON ends the run as ANALYSIS_INCOMPLETE. A failed API
+call does the same, with the HTTP status and nothing else.
+
 ## What is not built yet
 
-- **No model provider.** The only planner is `OfflinePlanner`, which can't judge exploitability. Model providers will
-  plug into the same `next_step` interface. Nothing is hardcoded to a vendor.
+- **Model output is not yet measured.** Tests use a fake transport. Accuracy against real findings needs a benchmark run
+  with the key, which has not been done.
 - **No attack-path tools.** Interprocedural data flow, route discovery and authorisation analysis are not implemented.
 - **No dynamic testing.** The `dynamic` and `runtime` evidence kinds exist, but no tool produces them yet.
 - **No advisory research tool, dependency tool or configuration tool** inside the loop.

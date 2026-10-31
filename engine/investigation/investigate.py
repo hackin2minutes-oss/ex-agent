@@ -17,6 +17,7 @@ from pathlib import Path
 
 from engine.investigation.citations import check_conclusion, demonstrated_for
 from engine.investigation.evidence import EvidenceStore
+from engine.investigation.planner import PlannerError
 from engine.investigation.tools import Toolbox, ToolError
 from engine.universal import ANALYSIS_INCOMPLETE, CONFIRMED_EXPLOITABLE, POTENTIALLY_EXPLOITABLE, UNKNOWN
 
@@ -70,7 +71,10 @@ def investigate(finding: dict, project_dir: Path, planner, *, max_steps: int = D
     for _ in range(max_steps):
         state = {"finding": finding, "evidence": [e.to_dict() for e in store.all()], "log": log,
                  "tools": toolbox.describe()}
-        step = planner.next_step(state)
+        try:
+            step = planner.next_step(state)
+        except PlannerError as error:
+            return _incomplete("the planner could not produce a step", [str(error)], store, log)
         if step.get("action") == "tool":
             entry = {"tool": step.get("tool"), "args": step.get("args", {})}
             try:
