@@ -27,6 +27,9 @@ from pathlib import Path
 
 from engine import code_scanning, deployment_context, evidence_graph, intel_snapshot, provenance, report_pdf, weakness
 from engine import findings as sca_findings
+from engine import sarif_dependency
+from engine import dependency
+from engine import dependency_usage
 from engine import pipeline, report, sca_universal, universal, universal_report
 from engine import guidance
 from engine.application import Application
@@ -124,6 +127,30 @@ def _image_inventory_finding(item: dict, document: dict, exposure: str) -> dict:
         exposure=exposure,
         identity=(package,),
     )
+    # The version dimension is separate from use. A fixed version installed means the component is not affected, so
+    # it is NOT_AFFECTED, whatever the application does with it. Anything else stays UNKNOWN.
+    status = dependency.version_status(item)
+    source = (item.get("sources") or [{}])[0].get("scanner", "scanner")
+    if status["status"] == dependency.FIXED_INSTALLED:
+        finding["assessment"] = universal.make_assessment(
+            universal.NOT_AFFECTED,
+            reason=f"{status['reason']}, as the {source} record shows",
+            engine="container-image-inventory",
+            conditions={"vulnerability_exists": universal.Condition(
+                universal.NOT_CONFIRMED, [f"{source} fixed version {status['fixed']}"])},
+            evidence=[{"condition": "vulnerability_exists", "kind": "version", "detail": status["reason"],
+                       "source": source}],
+            confidence="MEDIUM",
+            confidence_reason="the fixed version comes from the scanner's record and is not checked against the advisory",
+            coverage={"analysed": [f"{package} version against {source}'s fixed version"],
+                      "not_analysed": ["application use of the package"]},
+            limitations=["the fixed version is taken from the scanner's record, not from the advisory itself"],
+            exposure=exposure,
+        ).to_dict()
+        finding["assessment"]["version_status"] = status["status"]
+        finding["assessment"]["dimensions"] = dependency.dimensions(
+            presence="image", version=status, usage=None, verdict=universal.NOT_AFFECTED)
+        return finding
     finding["assessment"] = universal.make_assessment(
         universal.UNKNOWN,
         reason=f"{ecosystem} {package} is present in the image; whether the application uses the "
@@ -132,9 +159,13 @@ def _image_inventory_finding(item: dict, document: dict, exposure: str) -> dict:
         coverage={"analysed": [f"{package} present in the image"],
                   "not_analysed": ["application use of the package", "runtime exposure of the container"]},
         limitations=["application use of the package is not analysed",
-                     "runtime exposure and isolation of the container are not analysed"],
+                     "runtime exposure and isolation of the container are not analysed",
+                     status["reason"]],
         exposure=exposure,
     ).to_dict()
+    finding["assessment"]["version_status"] = status["status"]
+    finding["assessment"]["dimensions"] = dependency.dimensions(
+        presence="image", version=status, usage=None, verdict=universal.UNKNOWN)
     return finding
 
 
@@ -263,6 +294,21 @@ def run(inputs, project_dir: Path, output_dir: Path, *, exposure: str = "unknown
             diagnostics.append(f"skipped {path.name}: not readable JSON ({type(exc).__name__})")
             inputs_summary.append({"input": path.name, "route": "skipped"})
             continue
+        if isinstance(document, dict) and isinstance(document.get("runs"), list) and not adapter_name:
+            # Dependency results in SARIF carry a package and version, not source code. They go to the dependency
+            # analysis, not to the source-level SAST engine. The rest of the SARIF goes on to its adapter.
+            dependency_records, document = sarif_dependency.split(document)
+            if dependency_records:
+                image_records = [r for r in dependency_records if r["sources"][0]["scope"] == "image"]
+                project_records = [r for r in dependency_records if r["sources"][0]["scope"] != "image"]
+                findings.extend(_image_inventory_finding(item, {"ArtifactName": path.name}, exposure)
+                                for item in image_records)
+                if project_records:
+                    sca_inputs.append((path.name, project_records))
+                inputs_summary.append({"input": path.name, "route": "sarif-dependency",
+                                       "records": len(dependency_records)})
+                diagnostics.append(f"sarif-dependency: {len(dependency_records)} dependency result(s), "
+                                   f"{len(image_records)} in an image, {len(project_records)} assessed as dependencies")
         if adapter_name:
             adapter = registry.adapter(adapter_name)
         else:
@@ -313,6 +359,14 @@ def run(inputs, project_dir: Path, output_dir: Path, *, exposure: str = "unknown
     if sca_inputs:
         sca_results = _run_sca(sca_inputs, project_dir.resolve(), output_dir, exposure=exposure,
                                offline=offline, rules_dir=rules_dir, diagnostics=diagnostics)
+        for finding in sca_results:
+            # Use of the package is a separate dimension. It is checked in the project's source, and it does not
+            # change the verdict the dependency pipeline gave.
+            dependency_info = finding["original"].get("dependency") or {}
+            usage = dependency_usage.find(project_dir.resolve(), dependency_info.get("ecosystem", ""),
+                                          dependency_info.get("name", ""))
+            finding["assessment"]["dimensions"] = dependency.dimensions(
+                presence="project", version=None, usage=usage, verdict=finding["assessment"]["verdict"])
         findings.extend(sca_results)
         adapters_used.append("sca-pipeline")
 

@@ -478,8 +478,17 @@ def run(project_dir: Path, deps_path: Path | None, rules_dir: Path, output_dir: 
         codeql_path: str | None = None, build_command: str | None = None,
         intel: intel_module.Intel | None = None, policy_path: Path | None = None,
         exposure: str = "unknown", imported_findings: list[dict] | None = None) -> dict:
-    deps = [d for d in ingest.resolve(project_dir, deps_path)
-            if d["scope"] not in SHIPPED_SCOPE_EXCLUDED]
+    notes: list[str] = []
+    try:
+        resolved = ingest.resolve(project_dir, deps_path)
+    except FileNotFoundError:
+        # A scanner's own findings name their manifest, so they can be analysed without a resolved file at the root.
+        # Without them there is nothing to analyse, so the error stands.
+        if not imported_findings:
+            raise
+        resolved = []
+        notes.append("no resolved dependency file at the project root: scanner-reported dependencies only")
+    deps = [d for d in resolved if d["scope"] not in SHIPPED_SCOPE_EXCLUDED]
     rules = symbols.load_rules(rules_dir)
     intel = intel or intel_module.Intel(cache_dir=cache_dir, offline=offline)
 
@@ -495,7 +504,6 @@ def run(project_dir: Path, deps_path: Path | None, rules_dir: Path, output_dir: 
             cand["nvd"] = intel.nvd_cve(cand["cve"])
     unresolved = sum(1 for d in deps if d["ecosystem"] == "unknown")
 
-    notes: list[str] = []
     if imported_skipped:
         notes.append(f"{imported_skipped} imported scanner finding(s) skipped: ecosystem not supported for analysis")
     codeql_bin = codeql.find_codeql(codeql_path)

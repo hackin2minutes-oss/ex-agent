@@ -1,0 +1,197 @@
+{
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Trivy"
+        }
+      },
+      "results": [
+        {
+          "ruleId": "CVE-2026-118781",
+          "message": {
+            "text": "Package: node-forge\nInstalled Version: 1.3.1\nVulnerability CVE-2026-118781\nSeverity: LOW\nFixed Version: 1.4.1\nLink: [CVE-2026-118781](https://avd.aquasec.com/nvd/cve-2026-118781)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "usr/local/lib/node_modules/n8n/node_modules/.pnpm/node-forge@1.3.1/node_modules/node-forge/package.json"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "GHSA-vjf3-2gpj-233v",
+          "message": {
+            "text": "Package: n8n\nInstalled Version: 1.100.0\nVulnerability GHSA-vjf3-2gpj-233v\nSeverity: MEDIUM\nFixed Version: 2.8.0\nLink: [GHSA-vjf3-2gpj-233v](https://github.com/advisories/GHSA-vjf3-2gpj-233v)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "usr/local/lib/node_modules/n8n/package.json"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "CVE-2025-3777",
+          "message": {
+            "text": "Package: transformers\nInstalled Version: 4.35.0\nVulnerability CVE-2025-3777\nSeverity: LOW\nFixed Version: 4.52.1\nLink: [CVE-2025-3777](https://avd.aquasec.com/nvd/cve-2025-3777)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "vulnerable_llm_agent/requirements.txt"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "CVE-2026-22796",
+          "message": {
+            "text": "Package: libcrypto3\nInstalled Version: 3.5.0-r0\nVulnerability CVE-2026-22796\nSeverity: LOW\nFixed Version: 3.5.5-r0\nLink: [CVE-2026-22796](https://avd.aquasec.com/nvd/cve-2026-22796)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "sawone-agentic-reports/raw/img2.tar"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "CVE-2025-13204",
+          "message": {
+            "text": "Package: expr-eval\nInstalled Version: 2.0.2\nVulnerability CVE-2025-13204\nSeverity: HIGH\nFixed Version: \nLink: [CVE-2025-13204](https://avd.aquasec.com/nvd/cve-2025-13204)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "usr/local/lib/node_modules/n8n/node_modules/.pnpm/expr-eval@2.0.2/node_modules/expr-eval/package.json"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "CVE-2026-56857",
+          "message": {
+            "text": "Package: stdlib\nInstalled Version: v1.24.4\nVulnerability CVE-2026-56857\nSeverity: LOW\nFixed Version: 1.26.9, 1.27.2\nLink: [CVE-2026-56857](https://avd.aquasec.com/nvd/cve-2026-56857)"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "usr/local/bin/task-runner-launcher"
+                }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "Grype"
+        }
+      },
+      "results": [
+        {
+          "ruleId": "GHSA-h6cr-wjv9-3cpp-node-forge",
+          "message": {
+            "text": "A low vulnerability in npm package: node-forge, version 1.3.1 was found in image /home/runner/work/vectorvictor/vectorvictor/sawone-agentic-reports/raw/img2.tar at: /usr/local/lib/node_modules/n8n/node_modules/.pnpm/node-forge@1.3.1/node_modules/node-forge/package.json"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/local/lib/node_modules/n8n/node_modules/.pnpm/node-forge@1.3.1/node_modules/node-forge/package.json"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "GO-2026-5024-golang.org/x/sys",
+          "message": {
+            "text": "A low vulnerability in go-module package: golang.org/x/sys, version v0.18.0 was found in image /home/runner/work/vectorvictor/vectorvictor/sawone-agentic-reports/raw/img2.tar at: /usr/local/bin/task-runner-launcher"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "/local/bin/task-runner-launcher"
+                }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "tool": {
+        "driver": {
+          "name": "osv-scanner"
+        }
+      },
+      "results": [
+        {
+          "ruleId": "PYSEC-2026-4320",
+          "message": {
+            "text": "Package 'certifi@2026.7.22' is vulnerable to 'PYSEC-2026-4320' (also known as 'GHSA-6q48-6c7w-9gw2')."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "vulnerable_llm_agent/requirements.txt"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "CVE-2026-68770",
+          "message": {
+            "text": "Package 'sentence-transformers@2.2.2' is vulnerable to 'CVE-2026-68770' (also known as 'PYSEC-2026-4164', 'GHSA-jhr6-gm9c-rqjv')."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "vulnerable_llm_agent/requirements.txt"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "CVE-2026-68770",
+          "message": {
+            "text": "Package 'sentence-transformers@2.2.2' is vulnerable to 'CVE-2026-68770' (also known as 'PYSEC-2026-4164', 'GHSA-jhr6-gm9c-rqjv')."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "sawone-agentic-reports/raw/sbom-source.cdx.json"
+                }
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
