@@ -51,6 +51,9 @@ class SarifAdapter(Adapter):
             driver = ((run.get("tool") or {}).get("driver") or {})
             scanner = driver.get("name") if isinstance(driver.get("name"), str) else "sarif"
             category = CATEGORY_BY_TOOL.get(scanner.lower(), "SAST")
+            # The CWE tags live on the rule, not on the result. Keep the rule with each result so the weakness is known.
+            rules = {rule["id"]: rule for rule in driver.get("rules") or []
+                     if isinstance(rule, dict) and isinstance(rule.get("id"), str)}
             for index, result in enumerate(run.get("results") or []):
                 if not isinstance(result, dict):
                     raise ModelError(f"sarif result {run_index}.{index} is not an object")
@@ -73,6 +76,8 @@ class SarifAdapter(Adapter):
                     original=result,
                     summary=message,
                 ))
+                if rule_id in rules:
+                    findings[-1]["rule_metadata"] = rules[rule_id]
         diagnostics = [f"sarif: {len(findings)} result(s)"]
         if without_location:
             diagnostics.append(f"sarif: {without_location} result(s) have no source location and are UNKNOWN")

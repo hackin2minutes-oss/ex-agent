@@ -68,7 +68,7 @@ def cwes_in(record) -> list[str]:
 def classify(finding: dict) -> dict:
     """The weakness record for a finding: its CWE identifiers, and the class they map to, or None when the
     source names no CWE or names only CWEs this table does not classify."""
-    cwes = cwes_in(finding.get("original") or {})
+    cwes = cwes_in([finding.get("original") or {}, finding.get("rule_metadata") or {}])
     classes = []
     for cwe in cwes:
         weakness_class = CLASS_BY_CWE.get(int(cwe.split("-", 1)[1]))
