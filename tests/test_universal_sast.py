@@ -171,6 +171,14 @@ class SastEngineCaseTest(unittest.TestCase):
         self.assertEqual(assessment["verdict"], UNKNOWN)
         self.assertIn("no call expression", assessment["reason"])
 
+    def test_flagged_argument_matches_the_call_that_contains_it(self):
+        # Semgrep flags the value True in shell=True, not the whole call.
+        source = "import subprocess\nsubprocess.call(cmd, shell=True)\n"
+        doc = self.document_for("e.py", source, 2, 28, 2, 32)
+        assessment = assess_document(doc, self.project)[0]["assessment"]
+        self.assertNotIn("no call expression", assessment["reason"])
+        self.assertNotEqual(assessment["verdict"], UNKNOWN)
+
     def test_missing_file_is_unknown(self):
         doc = self.document_for("present.py", "run(x)\n", 1)
         (self.project / "present.py").unlink()
