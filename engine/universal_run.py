@@ -55,7 +55,7 @@ from engine.universal import EXPOSURES, ModelError, Registry
 REPORT_SUFFIXES = {".sarif", ".json"}
 from engine.zizmor_adapter import ZizmorAdapter
 
-TOOL_VERSION = "0.8.0"
+TOOL_VERSION = "0.10.0"
 # Resource budgets. A report over a budget is skipped with a diagnostic, not read.
 MAX_REPORT_BYTES = 50_000_000
 MAX_RECORDS = 20_000
